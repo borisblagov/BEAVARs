@@ -9,9 +9,8 @@ Current VARs:
 
 The codes can be optimized.
 
-
-
-# Initializing functions
+```@contents
+```
 
 
 # References

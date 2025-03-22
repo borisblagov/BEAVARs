@@ -1,4 +1,5 @@
 module BEAVARs
+export mlag
 
 """
     mlag(Yfull::Matrix{Float64},p::Integer)
