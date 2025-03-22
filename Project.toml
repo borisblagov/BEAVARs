@@ -1,0 +1,13 @@
+name = "BEAVARs"
+uuid = "93a03eec-7b33-4fd3-aded-846a82f4850b"
+authors = ["Boris Blagov <46528899+borisblagov@users.noreply.github.com> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.6.7"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
