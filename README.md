@@ -1,5 +1,6 @@
 # Bayesian Econometric Analysis with VAR models
 
+![Credit Mikelde Ferro: https://www.youtube.com/watch?v=WIYQWK4pkqg&ab_channel=MikedelFerro-Music](BeaverMunchingCabbage.png)
 
 This is a personal package implementing various Bayesian VARs for economic analysis and forecasting. 
 
