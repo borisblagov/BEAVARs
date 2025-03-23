@@ -8,7 +8,7 @@ This is a personal package implementing various Bayesian VARs for economic analy
 
 
 Currently implemented VARs:
- - BVAR with dummy observations as in Banbura, M., Giannone, D., and Reichlin, L. (2010), Large Bayesian vecotr auto regressions, _Journal of Applied Econometrics_, Vol 25(1), [doi.org/10.1002/jae.1137](https://doi.org/10.1002/jae.1137).
+ - BVAR with dummy observations as in Banbura, M., Giannone, D., and Reichlin, L. (2010), Large Bayesian vector auto regressions, _Journal of Applied Econometrics_, Vol 25(1), [doi.org/10.1002/jae.1137](https://doi.org/10.1002/jae.1137).
 
  - BVAR with classical  Minnesota prior (homoscedastic fixed variance-covariance matrix) as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
 
@@ -33,5 +33,5 @@ It does not conform to the widely accepted convention of naming Julia packages (
 
 
 #  Acknowledgmenets
-I would like to thank [Guillaume Dalle](https://github.com/gdalle]), who, even though it is not associated with this package went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the Julia discourse helped me when I was struggling - this community is great.
+I would like to thank [Guillaume Dalle](https://github.com/gdalle]). He is not associated with this package but went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the Julia discourse helped me when I was struggling - this community is great.
 
