@@ -27,11 +27,11 @@ Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Mac
 # Notes on the name
 The name BEAVARs is an obvious play of words with a misspelled version of my favourite animal.
 
-It is also a nod to the [BEAR Toolbox](https://www.ecb.europa.eu/press/research-publications/working-papers/html/bear-toolbox.en.html) - Bayesian  Estimation, Analysis and Regression, which is a powerful Matlab toolbox for estimating various VAR, BVAR, and Panel VAR models. While this is not an attempt to reach the size and scope of BEAR in the Julia ecosystem, there are some clear similarities in the idea of easy estimation of various models.
+It is also a nod to the [BEAR Toolbox](https://www.ecb.europa.eu/press/research-publications/working-papers/html/bear-toolbox.en.html) - Bayesian  Estimation, Analysis and Regression, which is a powerful Matlab toolbox for estimating various VAR, BVAR, and Panel VAR models. This is not an attempt to reach the size and scope of BEAR in the Julia ecosystem. There are, however, some similarities in the idea of easy estimation of different models.
 
-It does not conform to the widely accepted convention of naming Julia packages (Capital letter followed by all lowercase) but it [doesn't break any rules either](https://pkgdocs.julialang.org/v1/creating-packages/#Package-naming-rules). It isn't the only package with more than one capita letter, e.g. FFT, CUDA, CSV etc. Also, because it's misspelled on purpose, the name Beaver.jl remains open, and if someone does that one could still distinguish the packages BEAVARs.jl and Beavers.jl easily.
+It does not conform to the widely accepted convention of naming Julia packages (capital letter followed by all lowercase) but it [doesn't break any rules either](https://pkgdocs.julialang.org/v1/creating-packages/#Package-naming-rules). It isn't the only package with more than one capital letter, e.g. FFT, CUDA, CSV etc. Also, because it's misspelled on purpose, the name Beaver.jl remains open, and if someone does that one could still distinguish the packages BEAVARs.jl and Beavers.jl easily.
 
 
 #  Acknowledgmenets
-I would like to thank [https://github.com/gdalle](Guillaume Dalle), who, even though it is not associated with this package went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the Julia discourse helped me when I was struggling - this community is great.
+I would like to thank [Guillaume Dalle](https://github.com/gdalle]), who, even though it is not associated with this package went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the Julia discourse helped me when I was struggling - this community is great.
 
