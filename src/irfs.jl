@@ -79,9 +79,9 @@ function irf_chol_overDraws(store_beta,store_sigma,n,p,intercept,n_irf,nsave;shS
     end
 
     
-    IRF_median = precentile_mat(IRF_4d, dims= 4);
-    IRF_68_low = precentile_mat(IRF_4d, 0.16, dims= 4);
-    IRF_68_high = precentile_mat(IRF_4d, 0.84, dims= 4);
+    IRF_median = percentile_mat(IRF_4d, 0.5, dims= 4);
+    IRF_68_low = percentile_mat(IRF_4d, 0.16, dims= 4);
+    IRF_68_high = percentile_mat(IRF_4d, 0.84, dims= 4);
     return IRF_median, IRF_68_low, IRF_68_high, IRF_4d
 
 end

@@ -80,13 +80,13 @@ end
 
 
 """
-    precentile_mat(A, p; dims) 
+    percentile_mat(A, p; dims) 
 
 Calculates percentiles in a matrix across a specific dimension. Taken from https://github.com/JuliaStats/Statistics.jl/issues/23
 and written by [https://github.com/holomorphism](holomorphism). I couldn't find such a function in Julia
 
 """
-function precentile_mat(A, p; dims) 
+function percentile_mat(A, p; dims) 
     prctile_mat = mapslices(x->quantile(x, p), A; dims);
     prctileSlim_mat = dropdims(prctile_mat, dims = dims)
     return prctileSlim_mat

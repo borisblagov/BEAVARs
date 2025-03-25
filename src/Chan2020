@@ -1,0 +1,315 @@
+
+#----------------------------------------
+# Chan 2020 functions
+
+@with_kw mutable struct hypChan2020_CSV
+    c1::Float64     = 0.04; # hyperparameter on own lags
+    c2::Float64     = 0.01; # hyperparameter on other lags
+    c3::Float64     = 100;  # hyperparameter on the constant
+    ρ::Float64      = 0.8;
+    σ_h2::Float64   = 0.1;
+    v_h0::Float64    = 5.0; 
+    S_h0::Float64    = 0.01*(v_h0-1.0); 
+    ρ_0::Float64     = .9; 
+    V_ρ::Float64     = 0.04;
+    q::Float64       = 0.5;
+end
+
+
+@with_kw struct hypChan2020
+    c1::Float64 = 0.04; # hyperparameter on own lags
+    c2::Float64 = 0.01; # hyperparameter on other lags
+    c3::Float64 = 100;  # hyperparameter on the constant
+end
+
+function SUR_form(X,n)
+    repX = kron(X,ones(n,1));
+    r,c = size(X);
+    idi = repeat(1:r*n,inner=c);
+    idj=repeat(1:c*n,r);
+    Xout = sparse(idi,idj,vec(repX'));
+
+    return Xout
+end
+
+
+function Chan2020_LBA_Minn(YY;hyp=hypChan2020,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
+
+    Y, X, T, n = mlag_r(YY,p)
+
+    Yt = vec(Y')
+
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
+
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hyp);
+    k = n*p+1;
+    Xsur = SUR_form(X,n)
+    XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
+    Kbeta = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
+    C_Kbeta = cholesky(Hermitian(Kbeta));
+    beta_hat = C_Kbeta.U\(C_Kbeta.L\(beta_Minn./V_Minn + XiSig * Yt))
+    CSig = sparse(1:n,1:n,sqrt.(sigmaP));
+    
+    ndraws = nsave+nburn;
+    store_beta=zeros(n^2*p+n,nsave)
+    for ii = 1:ndraws 
+    beta = beta_hat + C_Kbeta.U\randn(k*n);
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+        end
+    end
+
+    return store_beta
+end
+
+
+@doc raw"""
+    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_Minn(n,p,sigmaP,hyp)
+
+Impements a Minnesota prior with scaling for the off-diagonal elements as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
+Macroeconomic Forecasting in the Era of Big Data, 95-125, Springer, Cham. If you remove the hyperparameters ``c_1``, ``c_2``, ``c_3`` (or set them equal to 1),
+you would end up with the getC function from Chan, J.C.C. (2021). Minnesota-Type Adaptive Hierarchical Priors for 
+Large Bayesian VARs, International Journal of Forecasting, 
+
+Outputs: 
+- C is the variance of the Minnesota prior defined as
+```math
+C_{n^2p+n \times 1} = 
+\begin{cases}
+        \dfrac{c_1}{l^2}, & \text{for the coefficient on the $l$-th lag of variable $i$}\\
+        \dfrac{c_2 s^2_i}{l^2 s^2_j}, & \text{for the coefficient on the $l$-th lag of variable $j$, $j\neq i$}\\
+        c_3, & \text{for the intercept}\\
+\end{cases}
+```
+It is commonly known as `V_Minn` or `V_theta` in other codes.
+
+The hyperparameters have default values of ``c_1 = 0.04``; ``c_2 = 0.01``; ``c_3 = 100``. In the Chan (2021) IJF paper they
+are referred to as ``\kappa_1``, ``\kappa_2``, and ``\kappa_4`` (``\kappa_3`` is used there for prior on contemporaneous relationships)
+
+"""
+function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypChan2020)    
+    @unpack c1,c2,c3 = hypChan2020()
+    C = zeros(n^2*p+n,);
+    beta_Minn = zeros(n^2*p+n);
+    np1 = n*p+1 # number of parameters per equation
+    idx_kappa1 =  Vector{Int64}()
+    idx_kappa2 =  Vector{Int64}()
+    idx_count = 1    
+    Ci = zeros(np1,1)     # vector for equation i
+
+    for ii = 1:n
+      for j = 1:n*p+1       # for j=1:n*p+1 
+        l = ceil((j-1)/n)       # Here we need a float, as afterwards we will divide by l 
+        idx = mod(j-1,n);       # this will count if its own lag, non-own lag, or constant
+        if idx==0
+            idx = n;
+        end
+        if j == 1
+            Ci[j] = c3;
+        elseif idx == ii
+            Ci[j] = c1/l^2;
+            push!(idx_kappa1,idx_count)
+        else
+            Ci[j] = c2*sigmaP_vec[ii]/(l^2*sigmaP_vec[idx]);
+            push!(idx_kappa2,idx_count)
+        end
+        idx_count += 1
+    end
+
+    C[(ii-1)*np1+1:ii*np1] = Ci
+
+    end
+    return idx_kappa1,idx_kappa2, C, beta_Minn
+
+end
+
+
+@doc raw"""
+    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_NonConj(n,p,sigmaP,hyp)
+
+Impements a Minnesota prior for a non-conjugate case as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
+Macroeconomic Forecasting in the Era of Big Data, 95-125, Springer, Cham.
+
+Outputs: 
+- C is the variance of the Minnesota prior defined as
+```math
+C_{n*p+1 \times 1} = 
+\begin{cases}
+        \dfrac{c_1}{l^2 s^2_i}, & \text{for the coefficient on the $l$-th lag of variable $i$}\\
+        c_3, & \text{for the intercept}\\
+\end{cases}
+```
+
+Note that C is now (n*p+1 x 1) and not n^2*p+n as [`prior_Minn(x)`](@ref)
+
+"""
+function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},c1::Float64,c3::Float64)    
+    #@unpack c1,c2,c3 = hyp;
+    C = zeros(n^2*p+n,);
+    beta_Minn = zeros(n^2*p+n);
+    np1 = n*p+1 # number of parameters per equation
+    idx_kappa1 =  Vector{Int64}()
+    idx_kappa2 =  Vector{Int64}()
+    idx_count = 1    
+    C = zeros(np1,)     # vector for equation i
+
+
+    for j = 1:n*p+1       # for j=1:n*p+1 
+    l = ceil((j-1)/n)       # Here we need a float, as afterwards we will divide by l 
+    idx = mod(j-1,n);       # this will count if its own lag, non-own lag, or constant
+    if idx==0
+        idx = n;
+    end
+    if j == 1
+        C[j] = c3;
+    else
+        C[j] = c1/(l^2*sigmaP_vec[idx]);
+        push!(idx_kappa1,idx_count)
+    end
+
+    end
+    return idx_kappa1,idx_kappa2, C, beta_Minn
+
+end
+
+
+function draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
+
+    accept = false;
+    T_h = size(s2_h,1);
+    # H_ρ = sparse(Matrix(1.0I, T_h, T_h)) - sparse(ρ*diagm(-1=>repeat(1:1,T_h-1)));
+    H_inv = H_ρ'*sparse(1:T_h,1:T_h,[(1-ρ^2)/σ_h2; 1/σ_h2*ones(T_h-1,)])*H_ρ
+    ϵ_h = 1.0;
+    ht = similar(h); ht[:,] = h[:,];
+    
+    local K_h
+    while ϵ_h > 10^(-3)
+        eht = exp.(ht);
+        sieht = s2_h[:,]./eht
+        f_h = -n/2.0 .+ 0.5*sieht;
+        G_h = 0.5*sieht
+        K_h = H_inv + sparse(1:T_h,1:T_h,G_h);
+        new_ht = K_h\(f_h + G_h.*ht)
+        ϵ_h = maximum(abs.(new_ht-ht))
+        ht[:,] = new_ht[:,]
+    end
+    C_K_h = cholesky(K_h)
+    
+    hstar = ht
+    logc = -0.5*hstar'*H_inv*hstar - (n/2.0) *sum(hstar) .- 0.5*exp.(-hstar)'*s2_h[:,] .+ log(3)
+    
+    flag = false
+    local hc = similar(h)
+    local alpARc = 0.0;
+    while flag == 0
+        hc = ht + C_K_h.U\randn(T_h,);        
+        alpARc = -0.5*hc'*H_inv*hc .- (n/2.0)*sum(hc) .- 0.5*exp.(-hc)'*s2_h[:,] .+ 0.5*(hc-ht)'*K_h*(hc-ht) .- logc;
+        
+        if alpARc > log(rand())
+            flag = true;
+        end
+    end        
+    alpAR = -0.5*h'*H_inv*h .- (n/2.0)*sum(h) .- 0.5*exp.(-h)'*s2_h[:,] .+ 0.5*(h-ht)'*K_h*(h-ht) .- logc;
+    if alpAR < 0
+        alpMH = 1.0;
+    elseif alpARc < 0
+        alpMH = - alpAR;
+    else
+        alpMH = alpARc - alpAR;
+    end    
+    if alpMH > log(rand())
+        h[:,] = hc[:,]; 
+        accept = true;
+    end
+
+    
+    return h, accept
+end # end draw_h_csv!
+
+
+
+
+function Chan2020_LBA_CSV(YY;hypChan2020_CSV,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
+    @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hypChan2020_CSV
+
+    Y, Z, T, n = mlag_r(YY,4)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
+    np1 = n*p+1; # number of parameters per equation
+    
+    
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,c1,c3);
+    
+    A_0 = reshape(beta_Minn,np1,n);
+    V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
+    
+    S_0 = Diagonal(sigmaP);
+    Σ = S_0;
+    v_0 = n+3;
+    h = zeros(T,)
+    H_ρ = sparse(Matrix(1.0I, T, T)) - sparse(ρ*diagm(-1=>repeat(1:1,T-1)));
+    # dv = ones(T,); ev = -ρ.*ones(T-1,);
+    # H_ρ = Bidiagonal(dv,ev,:L)
+    
+    # This part follows page 19 of Chan, J. (2020)
+    ndraws = nsave+nburn;
+    A_store = zeros(np1,n,nsave);
+    h_store = zeros(T,nsave);
+    s2_h_store = zeros(T,nsave);
+    ρ_store = zeros(nsave,);
+    σ_h2_store = zeros(nsave,); 
+    eh_store = zeros(T,nsave);
+    
+    eh = similar(h);
+
+    Ωinv = sparse(1:T,1:T,exp.(-h));
+    dg_ind_Ωinv = diagind(Ωinv);
+    for ii = 1:ndraws 
+        Ωinv[dg_ind_Ωinv]=exp.(-h);
+        ZtΩinv = Z'*Ωinv;
+        
+        K_A = V_Ainv + ZtΩinv*Z;
+        A_hat = K_A\(V_Ainv\A_0 + ZtΩinv*Y);
+        S_hat = S_0 + A_0'*V_Ainv*A_0 + Y'*Ωinv*Y - A_hat'*K_A*A_hat;
+        S_hat = (S_hat+S_hat')/2;
+    
+        Σ = rand(InverseWishart(v_0+T,S_hat));
+        CSig_t = cholesky(Σ).U; # if we get the upper we don't need constant transpose
+        A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*CSig_t;
+    
+        # Errors
+        U = Y - Z*A
+        s2_h = sum((U/CSig_t).^2,dims=2)
+    
+        draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
+        eh[1,] = h[1]*sqrt(1-ρ^2);
+        eh[2:end,] = h[2:end,].-ρ.*h[1:end-1,]
+        σ_h2 = 1.0./rand(Gamma(v_h0+T/2.0, 1/( S_h0 + sum(eh.^2)./2.0 ) ) )
+    
+        K_rho = 1.0/V_ρ + sum(h[1:T-1,].^2)./σ_h2;
+        ρ_hat = K_rho\(ρ_0/V_ρ + h[1:T-1,]'*h[2:T,]./σ_h2);
+        ρ_c = ρ_hat + sqrt(K_rho)\randn();
+    
+        g_ρ(x) = -0.5*log(σ_h2./(1-x.^2))-0.5*(1.0-x.^2)/σ_h2*h[1]^2;
+        if abs(ρ_c)<.999
+            alpMH = exp(g_ρ(ρ_c)-g_ρ(ρ));
+            if alpMH>rand()
+                ρ = ρ_c;            
+            end
+        end    
+        H_ρ[diagind(H_ρ,-1)]=fill(-ρ,T-1);
+        # H_ρ.ev.=-ρ.*ones(T-1,)
+
+
+        if ii>nburn
+            A_store[:,:,ii-nburn] = A;
+            h_store[:,ii-nburn] = h;
+            s2_h_store[:,ii-nburn] = s2_h;
+            ρ_store[ii-nburn,] = ρ;
+            σ_h2_store[ii-nburn,] = σ_h2;
+            eh_store[:,ii-nburn] = eh;
+        end
+    end
+
+    return A_store, h_store, s2_h_store, ρ_store, σ_h2_store, eh_store
+    # return A_store
+end # end function Chan2020_LBA_CSV
