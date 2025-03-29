@@ -17,6 +17,8 @@ k_nc = n*p;                     # number of perameters with no constant
 B_draw = reshape(beta_vec,k_nc+1,n)'
 if intercept == 1
     Bnc_draw = B_draw[:,1:k_nc]
+elseif intercept == -1
+    Bnc_draw = B_draw[:,2:k_nc+1]
 end
 
 # reshape the Sigma matrix
@@ -57,11 +59,11 @@ end
 """
     irf_chol_overDraws(store_beta,store_sigma,n,p,intercept,n_irf,nsave;shSize = "stdev")
 
-    Impulse response calculation over a distribution of parameters 
+    Impulse response calculation over a distribution of parameters for a homoskedastic VAR 
     Calls [irf_chol](@ref) 
     
     Uses the Cholesky decomposition and the companion form.
-        - beta_vec needs to have the parameters for each equation stacked on top of each other
+        - store_beta is a vector that needs to have the parameters for each equation stacked on top of each other
         - intercept: 
             - the function needs to know whether the intercept is at the left or the right to drop it correctly
             - use 1 if it is on the right, 0 if there is none, and -1 if it is on the left
@@ -74,6 +76,41 @@ function irf_chol_overDraws(store_beta,store_sigma,n,p,intercept,n_irf,nsave;shS
     for i_draw = 1:nsave
         beta_vec = store_beta[:,i_draw];
         sigma_vec = store_sigma[:,i_draw];
+    
+        IRF_4d[:,:,:,i_draw] = irf_chol(beta_vec,sigma_vec,n,p,intercept,n_irf,IRF_mat,shSize=shSize);
+    end
+
+    
+    IRF_median = percentile_mat(IRF_4d, 0.5, dims= 4);
+    IRF_68_low = percentile_mat(IRF_4d, 0.16, dims= 4);
+    IRF_68_high = percentile_mat(IRF_4d, 0.84, dims= 4);
+    return IRF_median, IRF_68_low, IRF_68_high, IRF_4d
+
+end
+
+
+"""
+    irf_chol_overDraws_csv(B_store,Σ_store,h_store,n,p,intercept,n_irf,nsave;shSize = "stdev")
+
+    Impulse response calculation over a distribution of parameters 
+    Calls [irf_chol](@ref) 
+    
+    Uses the Cholesky decomposition and the companion form.
+        - beta_vec needs to have the parameters for each equation stacked on top of each other
+        - intercept: 
+            - the function needs to know whether the intercept is at the left or the right to drop it correctly
+            - use 1 if it is on the right, 0 if there is none, and -1 if it is on the left
+        - shSize: 
+            - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
+"""
+function irf_chol_overDraws_csv(store_B,store_Σ,store_h,n,p,intercept,n_irf;shSize = "stdev")
+    nsave = maximum(size(store_B));
+    IRF_4d = zeros(n_irf,n,n,nsave);
+    IRF_mat = zeros(n_irf,n,n);
+    h_mean = mean(median(exp.(store_h),dims=2));
+    for i_draw = 1:nsave
+        beta_vec = vec(store_B[:,:,i_draw]);
+        sigma_vec = h_mean.*vec(store_Σ[:,:,i_draw]);
     
         IRF_4d[:,:,:,i_draw] = irf_chol(beta_vec,sigma_vec,n,p,intercept,n_irf,IRF_mat,shSize=shSize);
     end

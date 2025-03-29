@@ -1,24 +1,3 @@
-module BEAVARs
-using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
-
-# from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat
-
-# from Banbura2010
-export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010
-
-# from irfs.jl
-export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
-
-# from Chan_2020
-export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_CSV, prior_NonConj, draw_h_csv_opt!
-export hypChan2020_CSV, hypChan2020
-
-include("init_functions.jl")
-include("Banbura2010.jl")
-include("irfs.jl")
-
-
 
 #----------------------------------------
 # Chan 2020 functions
@@ -203,7 +182,7 @@ function draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
     ϵ_h = 1.0;
     ht = similar(h); ht[:,] = h[:,];
     
-    local(K_h)
+    local K_h
     while ϵ_h > 10^(-3)
         eht = exp.(ht);
         sieht = s2_h[:,]./eht
@@ -250,70 +229,8 @@ end # end draw_h_csv!
 
 
 
-
-function draw_h_csv_opt!(h::Vector{Float64},s2_h,ρ,σ_h2,n,H_ρ)
-
-    accept = false;
-    T_h = size(s2_h,1);
-    # H_ρ = sparse(Matrix(1.0I, T_h, T_h)) - sparse(ρ*diagm(-1=>repeat(1:1,T_h-1)));
-    H_inv = H_ρ'*sparse(1:T_h,1:T_h,[(1.0-ρ^2)/σ_h2; 1.0/σ_h2*ones(T_h-1,)])*H_ρ
-    ϵ_h = 1.0;
-    # ht = similar(h); 
-    # ht[:,] = h[:,];
-    ht = h;
-    nd2 = n/2.0;
-
-    local K_h
-    while ϵ_h > 10^(-3)
-    #     eht = exp.(ht);
-    #     sieht = s2_h[:,]./eht
-        # f_h = -nd2 .+ 0.5*sieht;
-        # G_h = 0.5*sieht
-        G_h = 0.5.*s2_h[:,]./exp.(ht)
-        K_h = H_inv + sparse(1:T_h,1:T_h,G_h);
-        new_ht = K_h\(-nd2 .+ G_h + G_h.*ht)
-        ϵ_h = maximum(abs.(new_ht-ht))
-        ht[:,] = new_ht[:,]
-    end
-    C_K_h = cholesky(K_h)
-    
-    hstar = ht
-    logc = -0.5*hstar'*H_inv*hstar - nd2 *sum(hstar) .- 0.5*exp.(-hstar)'*s2_h .+ log(3)
-    
-    flag = false
-    local hc = similar(hstar)
-    # f(x,y) = -0.5*x'*H_inv*x .- nd2*sum(x) .- 0.5*exp.(-x)'*s2_h .+ 0.5*(x-y)'*K_h*(x-y) .- logc;
-    alpARc = 0.0;
-    while flag == 0
-        hc = ht + C_K_h.U\randn(T_h,);   
-        
-        alpARc = -0.5*hc'*H_inv*hc .- nd2*sum(hc) .- 0.5*exp.(-hc)'*s2_h .+ 0.5*(hc-ht)'*K_h*(hc-ht) .- logc;
-        # alpARc = f(hc,ht);
-        if alpARc > log(rand())
-            flag = true;
-        end
-    end        
-        alpAR = -0.5*h'*H_inv*h .- nd2*sum(h) .- 0.5*exp.(-h)'*s2_h .+ 0.5*(h-ht)'*K_h*(h-ht) .- logc;
-        # alpAR = f(h,ht);
-    if alpAR < 0.0
-        alpMH = 1.0;
-    elseif alpARc < 0.0
-        alpMH = - alpAR;
-    else
-        alpMH = alpARc - alpAR;
-    end    
-    if alpMH > log(rand())
-        h[:,] = hc[:,]; 
-        accept = true;
-    end
-
-    
-    return h, accept
-end # end draw_h_csv!
-
-
-function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
-    @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
+function Chan2020_LBA_CSV(YY;hypChan2020_CSV,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
+    @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hypChan2020_CSV
 
     Y, Z, T, n = mlag_r(YY,4)
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
@@ -337,7 +254,6 @@ function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=100
     ndraws = nsave+nburn;
     A_store = zeros(np1,n,nsave);
     h_store = zeros(T,nsave);
-    Σ_store = zeros(n,n,nsave);
     s2_h_store = zeros(T,nsave);
     ρ_store = zeros(nsave,);
     σ_h2_store = zeros(nsave,); 
@@ -387,7 +303,6 @@ function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=100
         if ii>nburn
             A_store[:,:,ii-nburn] = A;
             h_store[:,ii-nburn] = h;
-            Σ_store[:,:,ii-nburn] = Σ;
             s2_h_store[:,ii-nburn] = s2_h;
             ρ_store[ii-nburn,] = ρ;
             σ_h2_store[ii-nburn,] = σ_h2;
@@ -395,11 +310,6 @@ function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=100
         end
     end
 
-    return A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store
+    return A_store, h_store, s2_h_store, ρ_store, σ_h2_store, eh_store
     # return A_store
 end # end function Chan2020_LBA_CSV
-
-
-
-end
-

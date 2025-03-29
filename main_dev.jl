@@ -5,6 +5,8 @@ using DelimitedFiles
 using LinearAlgebra
 using Statistics
 
+
+
 YY = readdlm("data/FRED_Chan2020_LBA.txt",',');
 Y_small = YY[:,[1,2,4,8]];
 p = 1;
