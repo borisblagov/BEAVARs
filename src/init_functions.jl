@@ -12,8 +12,9 @@ function mlag(Yfull::Matrix{Float64},p::Integer)
         X[:,1+n*(i-1):n+n*(i-1)] = Yfull[p-i+1:end-i,:]
     end
     X[:,end] = ones(T,1)
+    const_loc = 0;
     Y = Yfull[p+1:end,:]
-    return Y, X, T, n
+    return Y, X, T, n, const_loc
 end
 
 
@@ -31,7 +32,8 @@ function mlag_r(Yfull::Matrix{Float64},p::Integer)
         X[:,2+n*(i-1):1+n+n*(i-1)] = Yfull[p-i+1:end-i,:]
     end
     Y = Yfull[p+1:end,:]
-    return Y, X, T, n
+    const_loc = 1;
+    return Y, X, T, n, const_loc
 end
 
 """
@@ -91,3 +93,5 @@ function percentile_mat(A, p; dims)
     prctileSlim_mat = dropdims(prctile_mat, dims = dims)
     return prctileSlim_mat
 end
+
+

@@ -1,14 +1,11 @@
 include("devPkgs.jl")
 
 using BEAVARs
-using DelimitedFiles
+# using DelimitedFiles
 using TimeSeries
-using CSV
-using Dates
-using DataFrames
-using XLSX
-using Plots
-using BEAVARs
+# using CSV
+# using Dates
+# using Plots
 
 #t_csv = CSV.File("data/data_tpu.csv")
 data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
@@ -26,9 +23,14 @@ p = 4;
 n_irf = 16;
 intercept = -1;
 
+VARsetup = VARdefault(n=1)
+hyper = hypChan2020_csv();
+A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv(YY;hyp=hyper);
+@btime Chan2020_LBA_csv(YY;hyp=hyper,nsave=100,nburn=100);
 
-hyper = hypChan2020_CSV();
-store_A, store_h, store_Σ, store_s2_h = Chan2020_LBA_CSV(YY;hyp=hyper,nsave = 5000,nburn = 5000);
+VARsetup = makeSetup(YY,nsave=100,nburn=100)
+A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
+@btime Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
 
 IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_A,store_Σ,store_h,n,p,intercept,n_irf;shSize = "stdev");
 
@@ -36,7 +38,6 @@ i_var = 4;
 i_shock = 1;
 plot(IRF_median[:,i_var,i_shock],ribbon = (IRF_median[:,i_var,i_shock].-IRF_68_low[:,i_var,1],IRF_68_high[:,i_var,i_shock].-IRF_median[:,i_var,1]),fillalpha=0.2,label="",title=var_names[i_var])
 
-plot(plot(0:10),plot(0:10))
 
 plt = plot(layout=(3,2))
 # for i_var = 1:n

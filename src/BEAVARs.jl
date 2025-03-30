@@ -2,7 +2,7 @@ module BEAVARs
 using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
 
 # from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat
+export mlag, mlag_r, ols, percentile_mat, VARdefault
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010
@@ -11,19 +11,38 @@ export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta
 export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
-export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_CSV, prior_NonConj, draw_h_csv_opt!
-export hypChan2020_CSV, hypChan2020
+export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
+export hypChan2020_csv, hypChan2020, Chan2020_LBA_csv_strct
+
+export makeSetup
 
 include("init_functions.jl")
 include("Banbura2010.jl")
 include("irfs.jl")
 
 
+abstract type modelSetup end
+
+struct VARSetup <: modelSetup
+    n::Int          # number of variables (will be overwritten)
+    p::Int          # number of lags
+    nsave::Int      # gibbs to save
+    nburn::Int      # gibbs to burn
+    n_irf::Int      # number of impulse responses
+    n_fcst::Int     # number of forecast periods
+    const_loc::Int  # location of the constant
+end
+
+# Constructor
+function makeSetup(YY::Array{Float64};p::Int64=4,nburn::Int64=1000,nsave::Int64=1000,n_irf::Int64=16,n_fcst::Int64 = 8,const_loc::Int64=0)
+    T,n = size(YY);
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc)
+end
 
 #----------------------------------------
 # Chan 2020 functions
 
-@with_kw mutable struct hypChan2020_CSV
+@with_kw struct hypChan2020_csv
     c1::Float64     = 0.04; # hyperparameter on own lags
     c2::Float64     = 0.01; # hyperparameter on other lags
     c3::Float64     = 100;  # hyperparameter on the constant
@@ -311,14 +330,18 @@ function draw_h_csv_opt!(h::Vector{Float64},s2_h,ρ,σ_h2,n,H_ρ)
     return h, accept
 end # end draw_h_csv!
 
+# function VARset = VARdefault
 
-function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
+# end
+
+function Chan2020_LBA_csv(YY::Array{Float64};hyp=hypChan2020_csv,p::Integer=4,nburn::Integer=2000,nsave::Integer=1000)
     @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
 
     Y, Z, T, n = mlag_r(YY,4)
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
     np1 = n*p+1; # number of parameters per equation
-    
+    # VARsetup.n = 20;
+    # print((n))
     
     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,c1,c3);
     
@@ -396,10 +419,108 @@ function Chan2020_LBA_CSV(YY;hyp=hypChan2020_CSV,p::Integer=4,nburn::Integer=100
     end
 
     return A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store
-    # return A_store
-end # end function Chan2020_LBA_CSV
+
+end # end function Chan2020_LBA_csv
+
+function Chan2020_LBA_csv_strct(YY::Array{Float64};hyp=hypChan2020_csv,VARSetup = VARsetup)
+    @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
+    @unpack p, nsave, nburn = VARSetup
+    Y, Z, T, n, const_loc = mlag_r(YY,4)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
+    np1 = n*p+1; # number of parameters per equation
+    
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,c1,c3);
+    
+    A_0 = reshape(beta_Minn,np1,n);
+    V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
+    
+    S_0 = Diagonal(sigmaP);
+    Σ = S_0;
+    v_0 = n+3;
+    h = zeros(T,)
+    H_ρ = sparse(Matrix(1.0I, T, T)) - sparse(ρ*diagm(-1=>repeat(1:1,T-1)));
+    # dv = ones(T,); ev = -ρ.*ones(T-1,);
+    # H_ρ = Bidiagonal(dv,ev,:L)
+    
+    # This part follows page 19 of Chan, J. (2020)
+    ndraws = nsave+nburn;
+    A_store = zeros(np1,n,nsave);
+    h_store = zeros(T,nsave);
+    Σ_store = zeros(n,n,nsave);
+    s2_h_store = zeros(T,nsave);
+    ρ_store = zeros(nsave,);
+    σ_h2_store = zeros(nsave,); 
+    eh_store = zeros(T,nsave);
+    
+    eh = similar(h);
+
+    Ωinv = sparse(1:T,1:T,exp.(-h));
+    dg_ind_Ωinv = diagind(Ωinv);
+    for ii = 1:ndraws 
+        Ωinv[dg_ind_Ωinv]=exp.(-h);
+        ZtΩinv = Z'*Ωinv;
+        
+        K_A = V_Ainv + ZtΩinv*Z;
+        A_hat = K_A\(V_Ainv\A_0 + ZtΩinv*Y);
+        S_hat = S_0 + A_0'*V_Ainv*A_0 + Y'*Ωinv*Y - A_hat'*K_A*A_hat;
+        S_hat = (S_hat+S_hat')/2;
+    
+        Σ = rand(InverseWishart(v_0+T,S_hat));
+        CSig_t = cholesky(Σ).U; # if we get the upper we don't need constant transpose
+        A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*CSig_t;
+    
+        # Errors
+        U = Y - Z*A
+        s2_h = sum((U/CSig_t).^2,dims=2)
+    
+        draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
+        eh[1,] = h[1]*sqrt(1-ρ^2);
+        eh[2:end,] = h[2:end,].-ρ.*h[1:end-1,]
+        σ_h2 = 1.0./rand(Gamma(v_h0+T/2.0, 1/( S_h0 + sum(eh.^2)./2.0 ) ) )
+    
+        K_rho = 1.0/V_ρ + sum(h[1:T-1,].^2)./σ_h2;
+        ρ_hat = K_rho\(ρ_0/V_ρ + h[1:T-1,]'*h[2:T,]./σ_h2);
+        ρ_c = ρ_hat + sqrt(K_rho)\randn();
+    
+        g_ρ(x) = -0.5*log(σ_h2./(1-x.^2))-0.5*(1.0-x.^2)/σ_h2*h[1]^2;
+        if abs(ρ_c)<.999
+            alpMH = exp(g_ρ(ρ_c)-g_ρ(ρ));
+            if alpMH>rand()
+                ρ = ρ_c;            
+            end
+        end    
+        H_ρ[diagind(H_ρ,-1)]=fill(-ρ,T-1);
+        # H_ρ.ev.=-ρ.*ones(T-1,)
 
 
+        if ii>nburn
+            A_store[:,:,ii-nburn] = A;
+            h_store[:,ii-nburn] = h;
+            Σ_store[:,:,ii-nburn] = Σ;
+            s2_h_store[:,ii-nburn] = s2_h;
+            ρ_store[ii-nburn,] = ρ;
+            σ_h2_store[ii-nburn,] = σ_h2;
+            eh_store[:,ii-nburn] = eh;
+        end
+    end
 
+    return A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store
+    
+end # end function Chan2020_LBA_csv
+
+
+@with_kw struct VARdefault
+    n::Int = 0;          # number of variables (will be overwritten)
+    p::Int = 4;             # number of lags
+    nsave::Int = 1000;      # gibbs to save
+    nburn::Int = 2000;      # gibbs to burn
+    n_irf::Int = 16;      # number of impulse responses
+    n_fcst::Int = 8;    # number of forecast periods
+    const_loc::Int = 0;  # location of the constant
 end
+
+
+#-------------------------------------
+end # END OF MODULE
+#-------------------------------------
 
