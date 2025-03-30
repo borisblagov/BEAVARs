@@ -3,9 +3,10 @@ include("devPkgs.jl")
 using BEAVARs
 # using DelimitedFiles
 using TimeSeries
+using Parameters
 # using CSV
 # using Dates
-# using Plots
+ using Plots
 
 #t_csv = CSV.File("data/data_tpu.csv")
 data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
@@ -18,21 +19,19 @@ data_de = data_ta_full[[:tpuCaldara, :pmiDE, :gdpDE, :invDE, :hicpDE, :euribor]]
 var_names = colnames(data_de)
 YY = values(data_de);
 
-n= size(data_de,2);
-p = 4;
-n_irf = 16;
-intercept = -1;
 
-VARsetup = VARdefault(n=1)
+
 hyper = hypChan2020_csv();
-A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv(YY;hyp=hyper);
+store_A, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv(YY;hyp=hyper);
 @btime Chan2020_LBA_csv(YY;hyp=hyper,nsave=100,nburn=100);
 
-VARsetup = makeSetup(YY,nsave=100,nburn=100)
-A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
+VARsetup = makeSetup(YY,nsave=1000,nburn=1000)
+@unpack n,p, n_irf, const_loc = VARsetup
+const_loc = 1
+store_A, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
 @btime Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
 
-IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_A,store_Σ,store_h,n,p,intercept,n_irf;shSize = "stdev");
+IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_A,store_Σ,store_h,n,p,const_loc,n_irf;shSize = "stdev");
 
 i_var = 4;
 i_shock = 1;

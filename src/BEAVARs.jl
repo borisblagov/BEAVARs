@@ -2,7 +2,7 @@ module BEAVARs
 using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
 
 # from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat, VARdefault
+export mlag, mlag_r, ols, percentile_mat
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010
@@ -330,9 +330,7 @@ function draw_h_csv_opt!(h::Vector{Float64},s2_h,ρ,σ_h2,n,H_ρ)
     return h, accept
 end # end draw_h_csv!
 
-# function VARset = VARdefault
 
-# end
 
 function Chan2020_LBA_csv(YY::Array{Float64};hyp=hypChan2020_csv,p::Integer=4,nburn::Integer=2000,nsave::Integer=1000)
     @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
@@ -508,16 +506,6 @@ function Chan2020_LBA_csv_strct(YY::Array{Float64};hyp=hypChan2020_csv,VARSetup 
     
 end # end function Chan2020_LBA_csv
 
-
-@with_kw struct VARdefault
-    n::Int = 0;          # number of variables (will be overwritten)
-    p::Int = 4;             # number of lags
-    nsave::Int = 1000;      # gibbs to save
-    nburn::Int = 2000;      # gibbs to burn
-    n_irf::Int = 16;      # number of impulse responses
-    n_fcst::Int = 8;    # number of forecast periods
-    const_loc::Int = 0;  # location of the constant
-end
 
 
 #-------------------------------------
