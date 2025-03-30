@@ -1,5 +1,5 @@
 """
-    irf_chol(beta_vec,sigma_vec,n::Integer,p::Integer,intercept,n_irf::Integer,IRF_mat;shSize::String = "stdev")
+    irf_chol(beta_vec,sigma_vec,n::Integer,p::Integer,const_loc::Integer,n_irf::Integer,IRF_mat;shSize::String = "stdev")
 
     Calculates impulse responses for a set of parameters in a vector beta_vec and variance-covariance matrix in a vector sigma_vec
     Uses the Cholesky decomposition and the companion form.
