@@ -57,7 +57,7 @@ return IRF_mat
 end # End of irf_chol
 
 """
-    irf_chol_overDraws(store_beta,store_sigma,n,p,const_loc,n_irf,nsave;shSize = "stdev")
+    irf_chol_overDraws(store_beta,store_sigma,VARSetup;shSize = "stdev")
 
     Impulse response calculation over a distribution of parameters for a homoskedastic VAR 
     Calls [irf_chol](@ref) 
@@ -69,7 +69,8 @@ end # End of irf_chol
         - shSize: 
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
-function irf_chol_overDraws(store_beta,store_sigma,n,p,const_loc,n_irf,nsave;shSize = "stdev")
+function irf_chol_overDraws(store_beta,store_sigma,VARSetup;shSize = "stdev")
+    @unpack n,p,const_loc,n_irf,nsave = VARSetup;
     IRF_4d = zeros(n_irf,n,n,nsave);
     IRF_mat = zeros(n_irf,n,n);
     for i_draw = 1:nsave
@@ -101,13 +102,16 @@ end
         - shSize: 
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
-function irf_chol_overDraws_csv(store_B,store_Σ,store_h,n,p,const_loc,n_irf;shSize = "stdev")
+function irf_chol_overDraws_csv(store_B,store_Σ,store_h,VARSetup;shSize = "stdev")
+    @unpack n,p,const_loc,n_irf = VARSetup
     nsave = maximum(size(store_B));
     IRF_4d = zeros(n_irf,n,n,nsave);
     IRF_mat = zeros(n_irf,n,n);
-    h_mean = mean(median(exp.(store_h),dims=2));
+    # h_mean = mean(median(exp.(store_h),dims=2));
     for i_draw = 1:nsave
-        beta_vec = vec(store_B[:,:,i_draw]);
+        # beta_vec = vec(store_B[:,:,i_draw]);
+        h_mean = mean((exp.(store_h[:,i_draw])));
+        beta_vec = store_B[:,i_draw];
         sigma_vec = h_mean.*vec(store_Σ[:,:,i_draw]);
     
         IRF_4d[:,:,:,i_draw] = irf_chol(beta_vec,sigma_vec,n,p,const_loc,n_irf,IRF_mat,shSize=shSize);

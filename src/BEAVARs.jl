@@ -12,7 +12,7 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
 export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
-export hypChan2020_csv, hypChan2020, Chan2020_LBA_csv_strct
+export hypChan2020, Chan2020_LBA_csv_keywords
 
 export makeSetup
 
@@ -34,15 +34,20 @@ struct VARSetup <: modelSetup
 end
 
 # Constructor
-function makeSetup(YY::Array{Float64};p::Int64=4,nburn::Int64=1000,nsave::Int64=1000,n_irf::Int64=16,n_fcst::Int64 = 8,const_loc::Int64=0)
+function makeSetup(YY::Array{Float64},model=model_str;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,const_loc::Int=0)
     T,n = size(YY);
-    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc)
+    if model == "Chan2020_LBA_csv"
+        hyp = hypChan2020()
+        const_loc = 1;
+    else
+    end
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), hyp
 end
 
 #----------------------------------------
 # Chan 2020 functions
 
-@with_kw struct hypChan2020_csv
+@with_kw struct hypChan2020
     c1::Float64     = 0.04; # hyperparameter on own lags
     c2::Float64     = 0.01; # hyperparameter on other lags
     c3::Float64     = 100;  # hyperparameter on the constant
@@ -56,11 +61,11 @@ end
 end
 
 
-@with_kw struct hypChan2020
-    c1::Float64 = 0.04; # hyperparameter on own lags
-    c2::Float64 = 0.01; # hyperparameter on other lags
-    c3::Float64 = 100;  # hyperparameter on the constant
-end
+# @with_kw struct hypChan2020
+#     c1::Float64 = 0.04; # hyperparameter on own lags
+#     c2::Float64 = 0.01; # hyperparameter on other lags
+#     c3::Float64 = 100;  # hyperparameter on the constant
+# end
 
 function SUR_form(X,n)
     repX = kron(X,ones(n,1));
@@ -73,8 +78,8 @@ function SUR_form(X,n)
 end
 
 
-function Chan2020_LBA_Minn(YY;hyp=hypChan2020,p::Integer=4,nburn::Integer=1000,nsave::Integer=2000)
-
+function Chan2020_LBA_Minn(YY;hyp=hypChan2020,VARSetup)
+    @unpack p,nburn,nsave = VARSetup
     Y, X, T, n = mlag_r(YY,p)
 
     Yt = vec(Y')
@@ -88,18 +93,20 @@ function Chan2020_LBA_Minn(YY;hyp=hypChan2020,p::Integer=4,nburn::Integer=1000,n
     Kbeta = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
     C_Kbeta = cholesky(Hermitian(Kbeta));
     beta_hat = C_Kbeta.U\(C_Kbeta.L\(beta_Minn./V_Minn + XiSig * Yt))
-    CSig = sparse(1:n,1:n,sqrt.(sigmaP));
+    # CSig = sparse(1:n,1:n,sqrt.(sigmaP));
     
     ndraws = nsave+nburn;
     store_beta=zeros(n^2*p+n,nsave)
     for ii = 1:ndraws 
-    beta = beta_hat + C_Kbeta.U\randn(k*n);
+        beta = beta_hat + C_Kbeta.U\randn(k*n);
         if ii>nburn
             store_beta[:,ii-nburn] = beta;
         end
     end
 
-    return store_beta
+    Σ = Matrix(1.0I, n, n); Σ[diagind(Σ)]=diag(Σ).*sigmaP;
+    store_sigma = repeat(vec(Σ),1,nsave);
+    return store_beta, store_sigma
 end
 
 
@@ -132,8 +139,8 @@ function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypChan202
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
-    idx_kappa1 =  Vector{Int64}()
-    idx_kappa2 =  Vector{Int64}()
+    idx_kappa1 =  Vector{Int}()
+    idx_kappa2 =  Vector{Int}()
     idx_count = 1    
     Ci = zeros(np1,1)     # vector for equation i
 
@@ -183,13 +190,13 @@ C_{n*p+1 \times 1} =
 Note that C is now (n*p+1 x 1) and not n^2*p+n as [`prior_Minn(x)`](@ref)
 
 """
-function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},c1::Float64,c3::Float64)    
-    #@unpack c1,c2,c3 = hyp;
+function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hyp)    
+    @unpack c1,c3 = hyp;
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
-    idx_kappa1 =  Vector{Int64}()
-    idx_kappa2 =  Vector{Int64}()
+    idx_kappa1 =  Vector{Int}()
+    idx_kappa2 =  Vector{Int}()
     idx_count = 1    
     C = zeros(np1,)     # vector for equation i
 
@@ -332,7 +339,7 @@ end # end draw_h_csv!
 
 
 
-function Chan2020_LBA_csv(YY::Array{Float64};hyp=hypChan2020_csv,p::Integer=4,nburn::Integer=2000,nsave::Integer=1000)
+function Chan2020_LBA_csv_keywords(YY::Array{Float64};hyp=hypChan2020,p::Integer=4,nburn::Integer=2000,nsave::Integer=1000)
     @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
 
     Y, Z, T, n = mlag_r(YY,4)
@@ -341,7 +348,7 @@ function Chan2020_LBA_csv(YY::Array{Float64};hyp=hypChan2020_csv,p::Integer=4,nb
     # VARsetup.n = 20;
     # print((n))
     
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,c1,c3);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hyp);
     
     A_0 = reshape(beta_Minn,np1,n);
     V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
@@ -420,14 +427,17 @@ function Chan2020_LBA_csv(YY::Array{Float64};hyp=hypChan2020_csv,p::Integer=4,nb
 
 end # end function Chan2020_LBA_csv
 
-function Chan2020_LBA_csv_strct(YY::Array{Float64};hyp=hypChan2020_csv,VARSetup = VARsetup)
+function Chan2020_LBA_csv(YY::Array{Float64};VARSetup = VARsetup,hyp=hypChan2020)
     @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
     @unpack p, nsave, nburn = VARSetup
-    Y, Z, T, n, const_loc = mlag_r(YY,4)
+
+    Y, Z, T, n = mlag_r(YY,4)
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
     np1 = n*p+1; # number of parameters per equation
+    # VARsetup.n = 20;
+    # print((n))
     
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,c1,c3);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hyp);
     
     A_0 = reshape(beta_Minn,np1,n);
     V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
@@ -442,10 +452,10 @@ function Chan2020_LBA_csv_strct(YY::Array{Float64};hyp=hypChan2020_csv,VARSetup 
     
     # This part follows page 19 of Chan, J. (2020)
     ndraws = nsave+nburn;
-    A_store = zeros(np1,n,nsave);
-    h_store = zeros(T,nsave);
-    Σ_store = zeros(n,n,nsave);
-    s2_h_store = zeros(T,nsave);
+    store_beta = zeros(np1*n,nsave);
+    store_h = zeros(T,nsave);
+    store_Σ = zeros(n,n,nsave);
+    store_s2_h = zeros(T,nsave);
     ρ_store = zeros(nsave,);
     σ_h2_store = zeros(nsave,); 
     eh_store = zeros(T,nsave);
@@ -490,19 +500,18 @@ function Chan2020_LBA_csv_strct(YY::Array{Float64};hyp=hypChan2020_csv,VARSetup 
         H_ρ[diagind(H_ρ,-1)]=fill(-ρ,T-1);
         # H_ρ.ev.=-ρ.*ones(T-1,)
 
-
         if ii>nburn
-            A_store[:,:,ii-nburn] = A;
-            h_store[:,ii-nburn] = h;
-            Σ_store[:,:,ii-nburn] = Σ;
-            s2_h_store[:,ii-nburn] = s2_h;
+            store_beta[:,ii-nburn] = vec(A);
+            store_h[:,ii-nburn] = h;
+            store_Σ[:,:,ii-nburn] = Σ;
+            store_s2_h[:,ii-nburn] = s2_h;
             ρ_store[ii-nburn,] = ρ;
             σ_h2_store[ii-nburn,] = σ_h2;
             eh_store[:,ii-nburn] = eh;
         end
     end
 
-    return A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store
+    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
     
 end # end function Chan2020_LBA_csv
 

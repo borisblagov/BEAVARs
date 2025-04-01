@@ -8,35 +8,28 @@ using Parameters
 # using Dates
  using Plots
 
-#t_csv = CSV.File("data/data_tpu.csv")
-data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
-#TimeArray(t_csv; timestamp=:date)
-
-#tt = XLSX.readtable("data/data_tpu.xlsx", "Sheet1")
-#df=DataFrame(tt)
+ data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
 
 data_de = data_ta_full[[:tpuCaldara, :pmiDE, :gdpDE, :invDE, :hicpDE, :euribor]];
 var_names = colnames(data_de)
 YY = values(data_de);
 
 
+VARsetup, hyp_str = makeSetup(YY,"Chan2020_LBA_csv",n_irf=32,nsave=1000,nburn=1000)
+store_beta, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv(YY;VARSetup = VARsetup,hyp=hyp_str);
+# @btime Chan2020_LBA_csv(YY;hyp=hyper,VARSetup = VARsetup);
 
-hyper = hypChan2020_csv();
-store_A, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv(YY;hyp=hyper);
-@btime Chan2020_LBA_csv(YY;hyp=hyper,nsave=100,nburn=100);
+IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(beta_store,store_Σ,store_h,VARsetup;shSize = "stdev");
 
-VARsetup = makeSetup(YY,nsave=1000,nburn=1000)
-@unpack n,p, n_irf, const_loc = VARsetup
-const_loc = 1
-store_A, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store = Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
-@btime Chan2020_LBA_csv_strct(YY;hyp=hyper,VARSetup = VARsetup);
+store_beta, store_Σ =  Chan2020_LBA_Minn(YY;hyp=hypChan2020,VARSetup = VARsetup)
 
-IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_A,store_Σ,store_h,n,p,const_loc,n_irf;shSize = "stdev");
+IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws(beta_store,store_Σ,VARsetup;shSize = "stdev");
 
-i_var = 4;
+i_var = 3;
 i_shock = 1;
 plot(IRF_median[:,i_var,i_shock],ribbon = (IRF_median[:,i_var,i_shock].-IRF_68_low[:,i_var,1],IRF_68_high[:,i_var,i_shock].-IRF_median[:,i_var,1]),fillalpha=0.2,label="",title=var_names[i_var])
 
+n=6
 
 plt = plot(layout=(3,2))
 # for i_var = 1:n
