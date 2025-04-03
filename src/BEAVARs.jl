@@ -581,7 +581,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
         end
     end
 
-    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
+    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store, Z
     
 end # end function Chan2020_LBA_csv
 
