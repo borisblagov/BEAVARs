@@ -1,6 +1,10 @@
 # Additional functions
 
 ```@docs
+makeSetup(YY::Array{Float64},model=model_str; p::Int,nburn::Int,nsave::Int,n_irf::Int,n_fcst::Int)
+```
+
+```@docs
 ols(Y,X)
 ```
 

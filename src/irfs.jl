@@ -103,8 +103,8 @@ end
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
 function irf_chol_overDraws_csv(store_B,store_Σ,store_h,VARSetup;shSize = "stdev")
-    @unpack n,p,const_loc,n_irf = VARSetup
-    nsave = maximum(size(store_B));
+    @unpack n,p,const_loc,n_irf,nsave = VARSetup
+    # nsave = maximum(size(store_B)); # this doesn't work if its a vector
     IRF_4d = zeros(n_irf,n,n,nsave);
     IRF_mat = zeros(n_irf,n,n);
     # h_mean = mean(median(exp.(store_h),dims=2));
