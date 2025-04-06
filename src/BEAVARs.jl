@@ -2,7 +2,7 @@ module BEAVARs
 using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
 
 # from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat
+export mlag, mlag_r, ols, percentile_mat, mlag_linked!
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010, hypBanbura2010
@@ -14,11 +14,19 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
 export hypChan2020, Chan2020_LBA_csv_keywords
 
-export makeSetup
+export makeSetup, fortschr!
 
 include("init_functions.jl")
 include("Banbura2010.jl")
 include("irfs.jl")
+
+function fortschr!(Yfor,p,A)
+    for i_for = 1:8
+        tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+        tclass = [1;tclass];
+        Yfor[p+i_for,:]=tclass'*A;
+    end
+end
 
 
 abstract type modelSetup end
@@ -154,15 +162,15 @@ function Chan2020_LBA_Minn(YY,VARSetup,HyperSetup)
     k = n*p+1;
     Xsur = SUR_form(X,n)
     XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
-    Kbeta = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
-    C_Kbeta = cholesky(Hermitian(Kbeta));
-    beta_hat = C_Kbeta.U\(C_Kbeta.L\(beta_Minn./V_Minn + XiSig * Yt))
+    K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
+    cholK_β = cholesky(Hermitian(K_β));
+    beta_hat = cholK_β.U\(cholK_β.L\(beta_Minn./V_Minn + XiSig * Yt))
     # CSig = sparse(1:n,1:n,sqrt.(sigmaP));
     
     ndraws = nsave+nburn;
     store_beta=zeros(n^2*p+n,nsave)
     for ii = 1:ndraws 
-        beta = beta_hat + C_Kbeta.U\randn(k*n);
+        beta = beta_hat + cholK_β.U\randn(k*n);
         if ii>nburn
             store_beta[:,ii-nburn] = beta;
         end
@@ -544,12 +552,12 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
         S_hat = (S_hat+S_hat')/2;
     
         Σ = rand(InverseWishart(v_0+T,S_hat));
-        CSig_t = cholesky(Σ).U; # if we get the upper we don't need constant transpose
-        A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*CSig_t;
+        cholΣ  = cholesky(Σ).U; # if we get the upper we don't need constant transpose
+        A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*cholΣ;
     
         # Errors
         U = Y - Z*A
-        s2_h = sum((U/CSig_t).^2,dims=2)
+        s2_h = sum((U/cholΣ).^2,dims=2)
     
         draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
         eh[1,] = h[1]*sqrt(1-ρ^2);
