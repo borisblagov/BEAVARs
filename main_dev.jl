@@ -17,7 +17,7 @@ YY = values(data_de);
 
 # YY20 = readdlm("data/FRED_Chan2020_LBA.txt", ',');
 # YY = YY20[:,[1,4,5,6]]
-setup_str, hyper_str = makeSetup(YY,"Chan2020_LBA_csv",nburn=2000,nsave=1000)
+setup_str, hyper_str = makeSetup(YY,"Chan2020_LBA_csv",nburn=12000,nsave=5000,n_fcst=200)
 store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store, XX = Chan2020_LBA_csv(YY,setup_str,hyper_str);
 
 # Using Impulse responses
@@ -74,8 +74,7 @@ end
 
 Yfor3D, hfor3D = fcastChan2020_LBA_csv(YY,setup_str, store_beta, store_h,store_Σ, store_ρ, store_σ_h2);
 
-plot(Yfor[:,3])
 
 Yfor_med = median(Yfor3D,dims=3)
 
-plot(Yfor_med[:,6])
+plot(Yfor_med[:,4])
