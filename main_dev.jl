@@ -80,4 +80,4 @@ A_draw = @views reshape(store_beta[:,i_draw],n*p+1,n);
     Yfor[p+i_for,:]=tclass'*A_draw  #.+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
 end
 
-plot(Yfor[:,4,1])
+plot(Yfor[:,4])
