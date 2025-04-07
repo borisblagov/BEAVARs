@@ -17,8 +17,8 @@ YY = values(data_de);
 
 # YY20 = readdlm("data/FRED_Chan2020_LBA.txt", ',');
 # YY = YY20[:,[1,4,5,6]]
-setup_str, hyper_str = makeSetup(YY,"Chan2020_LBA_csv",nburn=200,nsave=100)
-store_beta, store_h, store_Σ, s2_h_store, ρ_store, σ_h2_store, eh_store, XX = Chan2020_LBA_csv(YY,setup_str,hyper_str);
+setup_str, hyper_str = makeSetup(YY,"Chan2020_LBA_csv",nburn=2000,nsave=1000)
+store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store, XX = Chan2020_LBA_csv(YY,setup_str,hyper_str);
 
 # Using Impulse responses
 IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_beta,store_Σ,store_h,setup_str);
@@ -45,16 +45,7 @@ end
 display(plt)
 
 
-# n = setup_str.n
-# plt = plot(layout=(3,2))
-#     for i_var = 1:n;
-#         plot!(plt,IRF_median[:,i_var,i_shock],ribbon = (IRF_median[:,i_var,i_shock].-IRF_68_low[:,i_var,1],IRF_68_high[:,i_var,i_shock].-IRF_median[:,i_var,1]),fillalpha=0.2,label="",title=var_names[i_var],titlefontsize=8,subplot=i_var)
-#     end
-# # end
-# display(plt)
 
-
-n_fcst = 200
 # Forecasting
 i_for = 1
 i_draw = 1;
@@ -69,15 +60,22 @@ hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
 hfor = @views hfor3D[:,i_draw];
 Yfor = @views Yfor3D[:,:,i_draw];
 A_draw = @views reshape(store_beta[:,i_draw],n*p+1,n);
-ρ_draw = @view ρ_store[i_draw];
-σ_h2_draw = @views σ_h2_store[i_draw];
+ρ_draw = @view store_ρ[i_draw];
+σ_h2_draw = @views store_σ_h2[i_draw];
 Σ_draw = @views store_Σ[:,:,i_draw];
         
 @time for i_for = 1:n_fcst
     hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
     tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
     tclass = [1;tclass];
-    Yfor[p+i_for,:]=tclass'*A_draw  #.+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
+    Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
 end
 
-plot(Yfor[:,4])
+
+Yfor3D, hfor3D = fcastChan2020_LBA_csv(YY,setup_str, store_beta, store_h,store_Σ, store_ρ, store_σ_h2);
+
+plot(Yfor[:,3])
+
+Yfor_med = median(Yfor3D,dims=3)
+
+plot(Yfor_med[:,6])

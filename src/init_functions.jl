@@ -18,11 +18,11 @@ function mlag(Yfull::Matrix{Float64},p::Integer)
 end
 
 """
-    mlag_linked(Yfull::Matrix{Float64},p::Integer)
+    mlag_linked!(Yfull::Matrix{Float64},p::Integer)
     Creates lags of a matrix for a VAR representation with a constant on the right
         Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
 """
-function mlag_linked(Yfull::Matrix{Float64},p::Integer)
+function mlag_linked!(Yf::Array{Float64},Xf::Array{Float64},p,const_loc)
     (Tf, n) = size(Yfull)
     T = Tf-p;
     X = zeros(T,n*p+1)

@@ -12,7 +12,7 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
 export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
-export hypChan2020, Chan2020_LBA_csv_keywords
+export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 
 export makeSetup, fortschr!
 
@@ -592,6 +592,42 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
     return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store, Z
     
 end # end function Chan2020_LBA_csv
+
+
+
+#--------------------------------------
+#--- FORECASTING BLOCK
+#----------------
+function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_ρ, store_σ_h2)
+    @unpack n_fcst,n,p,nsave = VARSetup
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
+    
+    
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+    
+        hfor = @views hfor3D[:,i_draw];
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_beta[:,i_draw],n*p+1,n);
+        ρ_draw = @view store_ρ[i_draw];
+        σ_h2_draw = @views store_σ_h2[i_draw];
+        Σ_draw = @views store_Σ[:,:,i_draw];
+                
+        for i_for = 1:n_fcst
+            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D, hfor3D
+
+
+end # end function fcastChan2020_LBA_csv()
 
 
 
