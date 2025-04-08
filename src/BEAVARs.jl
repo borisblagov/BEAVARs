@@ -21,10 +21,10 @@ export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 export makeSetup, fortschr!, beavar, dispatchModel
 
 # to be uncommented later
-export modelSetup, Chan2020_csv_type, Chan2020_Minnesota_type, modelHypSetup, hypDef2020_strct
+export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDef2020_strct
 
 # structures
-# export VARModelType, Chan2020_Minnesota_type, Chan2020_csv_type
+# export VARModelType, Chan2020_LBA_Minn_type, Chan2020_LBA_csv_type
 
 include("init_functions.jl")
 include("Banbura2010.jl")
@@ -41,8 +41,10 @@ end
 
 # Structures for multiple dispatch across models
 abstract type VARModelType end
-struct Chan2020_Minnesota_type <: VARModelType end
-struct Chan2020_csv_type <: VARModelType end
+struct Chan2020_LBA_Minn_type <: VARModelType end
+struct Chan2020_LBA_csv_type <: VARModelType end
+struct Banbura2010_type <: VARModelType end
+
 
 
 abstract type modelSetup end
@@ -125,11 +127,11 @@ function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst
     if model_str == "Chan2020_LBA_csv"
         # hyperSetup = hypChan2020()
         const_loc = 1;
-        model_type = Chan2020_csv_type()
+        model_type = Chan2020_LBA_csv_type()
     elseif model_str == "Chan2020_LBA_Minn"
         # hyperSetup = hypChan2020()
         const_loc = 1;
-        model_type = Chan2020_Minnesota_type()
+        model_type = Chan2020_LBA_Minn_type()
     elseif model_str == "Banbura2010"
         # hyperSetup = hypBanbura2010()
         const_loc = 0;
@@ -140,10 +142,10 @@ function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst
 end
 
 
-function makeHypSetup(::Chan2020_csv_type)
+function makeHypSetup(::Chan2020_LBA_csv_type)
     return hypChan2020()
 end
-function makeHypSetup(::Chan2020_Minnesota_type)
+function makeHypSetup(::Chan2020_LBA_Minn_type)
     return hypChan2020()
 end
 
@@ -166,14 +168,14 @@ function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::
     return setup_str, hyp_strct
 end
 
-function dispatchModel(YY,::Chan2020_Minnesota_type,setup_str, hyper_str)
+function dispatchModel(YY,::Chan2020_LBA_Minn_type,setup_str, hyper_str)
     # println("Hello Minn")
     store_beta, store_sigma = Chan2020_LBA_Minn(YY,setup_str,hyper_str);
     return store_beta, store_sigma
 end
 
 
-function dispatchModel(YY,::Chan2020_csv_type,setup_str, hyper_str)
+function dispatchModel(YY,::Chan2020_LBA_csv_type,setup_str, hyper_str)
     println("Hello csv")
     store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,setup_str,hyper_str);
     return store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store
