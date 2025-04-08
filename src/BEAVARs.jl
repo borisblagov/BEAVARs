@@ -20,6 +20,9 @@ export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 
 export makeSetup, fortschr!, beavar, dispatchModel
 
+# to be uncommented later
+export modelSetup, Chan2020_csv_type, Chan2020_Minnesota_type, modelHypSetup, hypDef2020_strct
+
 # structures
 # export VARModelType, Chan2020_Minnesota_type, Chan2020_csv_type
 
@@ -36,8 +39,18 @@ function fortschr!(Yfor,p,A)
 end
 
 
+# Structures for multiple dispatch across models
+abstract type VARModelType end
+struct Chan2020_Minnesota_type <: VARModelType end
+struct Chan2020_csv_type <: VARModelType end
+
+
 abstract type modelSetup end
 abstract type modelHypSetup end
+
+# empty structure for initialising the model
+struct hypDef2020_strct <: modelHypSetup
+end
 
 @with_kw struct VARSetup <: modelSetup
     n::Int          # number of variables (will be overwritten)
@@ -110,49 +123,52 @@ julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=50
 function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
     T,n = size(YY);
     if model_str == "Chan2020_LBA_csv"
-        hyperSetup = hypChan2020()
+        # hyperSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_csv_type()
     elseif model_str == "Chan2020_LBA_Minn"
-        hyperSetup = hypChan2020()
+        # hyperSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_Minnesota_type()
     elseif model_str == "Banbura2010"
-        hyperSetup = hypBanbura2010()
+        # hyperSetup = hypBanbura2010()
         const_loc = 0;
     else
         error("Model not found, make sure the spelling is correct, upper and lowercase letters matter!")
     end
-    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), hyperSetup, model_type
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
 end
 
 
-# Structures for multiple dispatch across models
-abstract type VARModelType end
-struct Chan2020_Minnesota_type <: VARModelType end
-struct Chan2020_csv_type <: VARModelType end
-
-
-function makeHypSetup(::Chan2020_csv_type;c1::Float64 = 0.04,c2::Float64 = 0.01)
-    # @unpack c1, c2, c3, ρ, σ_h2, v_h0, ρ_0, V_ρ, q = hyper_strct
-    return hypChan2020(c1=c1, c2=c2)
+function makeHypSetup(::Chan2020_csv_type)
+    return hypChan2020()
 end
-function makeHypSetup(::Chan2020_Minnesota_type;c1::Float64 = 0.04,c2::Float64 = 0.01)
-    return hypChan2020(c1=c1, c2=c2)
+function makeHypSetup(::Chan2020_Minnesota_type)
+    return hypChan2020()
 end
 
 
-function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8)
-    setup_str, hyper1_str, model_type = makeSetup(YY,model_str,p,n_irf,n_fcst,nburn,nsave);
-    hyper_str = makeHypSetup(model_type)
-    dispatchModel(YY,model_type,setup_str, hyper_str);
+function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDef2020_strct())
+    setup_str, model_type = makeSetup(YY,model_str,p,n_irf,n_fcst,nburn,nsave);
     
-    return setup_str, hyper_str
+    # checking if user supplied the hyperparameter structure
+    if isa(hyp,hypDef2020_strct)
+        # if not supplied, make a default one
+        hyp_strct = makeHypSetup(model_type)
+        # println("using the default hyperparameters")
+    else        
+        # else use supplied
+        hyp_strct = hyp
+        # println("using the supplied parameters")
+    end
+    dispatchModel(YY,model_type,setup_str, hyp_strct);
+    
+    return setup_str, hyp_strct
 end
 
 function dispatchModel(YY,::Chan2020_Minnesota_type,setup_str, hyper_str)
-    println("Hello Minn")
-    store_beta, store_sigma = Chan2020_LBA_csv(YY,setup_str,hyper_str);
+    # println("Hello Minn")
+    store_beta, store_sigma = Chan2020_LBA_Minn(YY,setup_str,hyper_str);
     return store_beta, store_sigma
 end
 
@@ -187,7 +203,7 @@ end
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
 """
-function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,HyperSetup)
+function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,HyperSetup::modelHypSetup)
     @unpack p,nburn,nsave = VARSetup
     Y, X, T, n = mlag_r(YY,p)
 

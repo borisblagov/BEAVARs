@@ -22,8 +22,8 @@ using BEAVARs
 
 YY = rand(35,4);
 hyp_mine = hypChan2020(c1=0.1)
-VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_csv",p=1,nburn=100,nsave=500);
-VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_Minn",p=4,nburn=100,nsave=500);
+@time VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_csv",p=1,nburn=100,nsave=500);
+@btime VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_Minn",p=1,nburn=100,nsave=500);
 
-Chan2020_LBA_csv(YY,VAR_str,Hyp_str)
-Chan2020_LBA_Minn(YY,VAR_str,Hyp_str)
+@time Chan2020_LBA_csv(YY,VAR_str,Hyp_str);
+@btime Chan2020_LBA_Minn(YY,VAR_str,Hyp_str);
