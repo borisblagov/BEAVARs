@@ -18,17 +18,11 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
 export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 
-export makeSetup, fortschr!, beavar, dispatchModel
+export makeSetup, fortschr!, beavar, dispatchModel, makeOutput
 
-# to be uncommented later
-export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDef2020_strct
+# Structures, to be uncommented later
+export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDef2020_strct, outChan2020_LBA_csv, VARModelType
 
-# structures
-# export VARModelType, Chan2020_LBA_Minn_type, Chan2020_LBA_csv_type
-
-include("init_functions.jl")
-include("Banbura2010.jl")
-include("irfs.jl")
 
 function fortschr!(Yfor,p,A)
     for i_for = 1:8
@@ -40,20 +34,22 @@ end
 
 
 # Structures for multiple dispatch across models
+
+# types for models
 abstract type VARModelType end
 struct Chan2020_LBA_Minn_type <: VARModelType end
 struct Chan2020_LBA_csv_type <: VARModelType end
 struct Banbura2010_type <: VARModelType end
 
 
-
+# types for parameters (VAR setup parameters, hyperparameters, and output storage)
 abstract type modelSetup end
 abstract type modelHypSetup end
 
 # empty structure for initialising the model
-struct hypDef2020_strct <: modelHypSetup
-end
+struct hypDef2020_strct <: modelHypSetup end
 
+# structure initializing the VAR
 @with_kw struct VARSetup <: modelSetup
     n::Int          # number of variables (will be overwritten)
     p::Int          # number of lags
@@ -63,6 +59,8 @@ end
     n_fcst::Int     # number of forecast periods
     const_loc::Int  # location of the constant
 end
+
+
 
 # Constructor
 @doc raw"""
@@ -86,7 +84,7 @@ Keyword arguments (e.g. p = 4). They don't have to be specified.
 Outputs
 
     VARSetup: the setup structure for the BEAVARs
-    HyperSetup: the setup structure for hyperparameters with default values. If you want to modify these, disregard the output and do it outside
+    hypSetup: the setup structure for hyperparameters with default values. If you want to modify these, disregard the output and do it outside
     
 Examples
 
@@ -125,18 +123,19 @@ julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=50
 function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
     T,n = size(YY);
     if model_str == "Chan2020_LBA_csv"
-        # hyperSetup = hypChan2020()
+        # hypSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_LBA_csv_type()
     elseif model_str == "Chan2020_LBA_Minn"
-        # hyperSetup = hypChan2020()
+        # hypSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_LBA_Minn_type()
     elseif model_str == "Banbura2010"
-        # hyperSetup = hypBanbura2010()
+        # hypSetup = hypBanbura2010()
         const_loc = 0;
+        model_type = Banbura2010_type()
     else
-        error("Model not found, make sure the spelling is correct, upper and lowercase letters matter!")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
     return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
 end
@@ -147,6 +146,9 @@ function makeHypSetup(::Chan2020_LBA_csv_type)
 end
 function makeHypSetup(::Chan2020_LBA_Minn_type)
     return hypChan2020()
+end
+function makeHypSetup(::Banbura2010_type)
+    return hypBanbura2010()
 end
 
 
@@ -181,6 +183,10 @@ function dispatchModel(YY,::Chan2020_LBA_csv_type,setup_str, hyper_str)
     return store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store
 end
 
+function dispatchModel(YY,::Banbura2010_type,setup_str, hyper_str)
+    println("Hello Banbura2010")
+    store_beta, store_sigma = Banbura2010(YY,setup_str,hyper_str);
+end
 
 #----------------------------------------
 # Chan 2020 LBA functions
@@ -200,12 +206,12 @@ end
 
 
 @doc raw"""
-# Chan2020_LBA_Minn(YY,VARSetup,HyperSetup)
+# Chan2020_LBA_Minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
 """
-function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,HyperSetup::modelHypSetup)
+function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     @unpack p,nburn,nsave = VARSetup
     Y, X, T, n = mlag_r(YY,p)
 
@@ -213,7 +219,7 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,HyperSetup::modelHypSetup)
 
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
 
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,HyperSetup);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
     k = n*p+1;
     Xsur = SUR_form(X,n)
     XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
@@ -238,7 +244,7 @@ end
 
 
 @doc raw"""
-    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_Minn(n,p,sigmaP,HyperSetup)
+    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup)
 
 Impements a Minnesota prior with scaling for the off-diagonal elements as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
 Macroeconomic Forecasting in the Era of Big Data, 95-125, Springer, Cham. If you remove the hyperparameters ``c_1``, ``c_2``, ``c_3`` (or set them equal to 1),
@@ -261,8 +267,8 @@ The hyperparameters have default values of ``c_1 = 0.04``; ``c_2 = 0.01``; ``c_3
 are referred to as ``\kappa_1``, ``\kappa_2``, and ``\kappa_4`` (``\kappa_3`` is used there for prior on contemporaneous relationships)
 
 """
-function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},HyperSetup)    
-    @unpack c1,c2,c3 = HyperSetup
+function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypSetup)    
+    @unpack c1,c2,c3 = hypSetup
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
@@ -317,8 +323,8 @@ C_{n*p+1 \times 1} =
 Note that C is now (n*p+1 x 1) and not n^2*p+n as [`prior_Minn(x)`](@ref)
 
 """
-function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},HyperSetup)    
-    @unpack c1,c3 = HyperSetup;
+function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypSetup)    
+    @unpack c1,c3 = hypSetup;
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
@@ -477,13 +483,13 @@ end
 
 
 @doc raw"""
-# Chan2020_LBA_csv(YY,VARSetup,HyperSetup)
+# Chan2020_LBA_csv(YY,VARSetup,hypSetup)
 
 Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
 
 """
-function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
-    @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = HyperSetup
+function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+    @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
 
     Y, Z, T, n = mlag_r(YY,p)
@@ -492,7 +498,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
     # VARsetup.n = 20;
     # print((n))
     
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,HyperSetup);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hypSetup);
     
     A_0 = reshape(beta_Minn,np1,n);
     V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
@@ -604,6 +610,12 @@ function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_
 
 end # end function fcastChan2020_LBA_csv()
 
+
+
+
+include("init_functions.jl")
+include("Banbura2010.jl")
+include("irfs.jl")
 
 
 #-------------------------------------

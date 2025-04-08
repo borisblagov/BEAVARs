@@ -2,7 +2,7 @@
 # Banbura et al. 2010 LBA functions
 
 
-@with_kw struct hypBanbura2010
+@with_kw struct hypBanbura2010 <: modelHypSetup
     lambda::Float64     = 0.1; # hyperparameter shrinkage between AR(1) and OLS
     epsi::Float64     = 0.001; # hyperparameter on the constant
 end
@@ -135,8 +135,8 @@ end
 
 
 # function Banbura2010(Z::Matrix{Float64};lags::Integer=1,lambda::Float64=0.1,epsi::Float64=0.001,nburn::Integer=1000,nsave::Integer=2000)
-function Banbura2010(Z::Matrix{Float64},VARSetup,HyperSetup)
-    @unpack lambda, epsi = HyperSetup
+function Banbura2010(Z::Matrix{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+    @unpack lambda, epsi = hypSetup
     @unpack p, nsave, nburn = VARSetup
     # p = lags;
     deltaP_mat, sigmaP_vec, mu_prior = trainPriors(Z,1)
