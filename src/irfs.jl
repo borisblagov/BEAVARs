@@ -9,7 +9,7 @@
         - shSize: 
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
-function irf_chol(beta_vec,sigma_vec,n::Integer,p::Integer,const_loc::Integer,n_irf::Integer,IRF_mat;shSize::String = "stdev")
+function irf_chol(beta_vec,sigma_vec,n::Integer,p::Integer,const_loc::Integer,n_irf::Integer,IRF_mat;shSize=0.0)
 
 k_nc = n*p;                     # number of perameters with no constant
 # reshape the B matrix and drop the constant
@@ -29,8 +29,8 @@ F = [Bnc_draw; 1.0I(n*(p-1)) zeros(n*(p-1),n)]; # Companion form
 A_chol = cholesky(Σ_draw);                  # structural identification via Cholesky
 
 # Shock size (if nothing is selected it will default to one s.d.)
-if shSize == "unity"        
-    shocks_mat    = (1.0./diag(A_chol.L)).*1.0I(n);    
+if shSize != 0.0        
+    shocks_mat    = shSize*(1.0./diag(A_chol.L)).*1.0I(n);    
 else 
     shocks_mat    = 1.0I(n);           
 end
@@ -69,7 +69,7 @@ end # End of irf_chol
         - shSize: 
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
-function irf_chol_overDraws(store_beta,store_sigma,VARSetup;shSize = "stdev")
+function irf_chol_overDraws(store_beta,store_sigma,VARSetup;shSize=0.0)
     @unpack n,p,const_loc,n_irf,nsave = VARSetup;
     IRF_4d = zeros(n_irf,n,n,nsave);
     IRF_mat = zeros(n_irf,n,n);
@@ -102,7 +102,7 @@ end
         - shSize: 
             - optional parameter, if set to shSize="unity" the shocks are scaled to unity, otherwise they are 1 standard deviation
 """
-function irf_chol_overDraws_csv(store_B,store_Σ,store_h,VARSetup;shSize = "stdev")
+function irf_chol_overDraws_csv(store_B,store_Σ,store_h,VARSetup;shSize = 0.0)
     @unpack n,p,const_loc,n_irf,nsave = VARSetup
     # nsave = maximum(size(store_B)); # this doesn't work if its a vector
     IRF_4d = zeros(n_irf,n,n,nsave);

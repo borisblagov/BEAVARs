@@ -509,8 +509,8 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = HyperSetup
     @unpack p, nsave, nburn = VARSetup
 
-    Y, Z, T, n = mlag_r(YY,4)
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
+    Y, Z, T, n = mlag_r(YY,p)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p)
     np1 = n*p+1; # number of parameters per equation
     # VARsetup.n = 20;
     # print((n))
