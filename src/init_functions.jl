@@ -18,6 +18,21 @@ function mlag(Yfull::Matrix{Float64},p::Integer)
 end
 
 """
+    mlag!(Yfull::Matrix{Float64},p::Integer)
+    Creates lags of a matrix for a VAR representation with a constant on the right
+        Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
+"""
+function mlag!(YY,Y,X,p,n)
+    #if const_loc == 0
+        for i = 1:p
+            X[:,1+n*(i-1):n+n*(i-1)] = @views YY[p-i+1:end-i,:]
+        end
+    #end
+    Y[:,:] = @views YY[p+1:end,:];
+    return Y, X
+end
+
+"""
     mlag_linked!(Yfull::Matrix{Float64},p::Integer)
     Creates lags of a matrix for a VAR representation with a constant on the right
         Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)

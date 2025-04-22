@@ -2,7 +2,7 @@ module BEAVARs
 using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
 
 # from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat, mlag_linked!
+export mlag, mlag_r, ols, percentile_mat, mlag_linked!, mlag!
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010, hypBanbura2010

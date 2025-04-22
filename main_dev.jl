@@ -7,6 +7,10 @@ using Statistics
 using TimeSeries
 using LinearAlgebra
 
+YY = rand(10,3)
+
+Y, X, T, n, const_loc = mlag(YY,2)
+
 
 
 data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
