@@ -1,3 +1,4 @@
+include("devPkgs.jl")
 using BEAVARs
 using DelimitedFiles
 

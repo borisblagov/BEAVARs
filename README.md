@@ -24,6 +24,9 @@ Banbura, Marta, Giannone, Domenico and Reichlin, Lucrezia, (2010), Large Bayesia
 
 Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6)
 
+# Requests
+This package is begin developed for my personal use mainly to learn Julia in my sparse spare time and I cannot add a particular paper or method. If you choose to do so and open an issue it might take a while for me to review it but feel free to do so.
+
 # Notes on the name
 The name BEAVARs is an obvious play of words with a misspelled version of my favourite animal.
 

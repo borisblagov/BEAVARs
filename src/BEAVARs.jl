@@ -352,7 +352,12 @@ function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypSetu
 
 end
 
+@doc raw"""
+    draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
 
+Draws the log-volatilities h by mutating the array from the previous draw using an MH algorithm
+
+"""
 function draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
 
     accept = false;
