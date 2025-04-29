@@ -17,9 +17,9 @@ varNamesM_full = colnames(dataM_bg_full)
 #YY = values(data_de);
 
 #adding second GDP for testing
-bgTest_tab = dataQ_bg_full[:gdpBG];
-bgTest_tab = rename(bgTest_tab,:gdp2)
-dataQ_bg_full = merge(dataQ_bg_full,bgTest_tab)
+# bgTest_tab = dataQ_bg_full[:gdpBG];
+# bgTest_tab = rename(bgTest_tab,:gdp2)
+# dataQ_bg_full = merge(dataQ_bg_full,bgTest_tab)
 
 dataM_bg_raw = dataM_bg_full
 dataQ_bg_raw = dataQ_bg_full
@@ -28,17 +28,19 @@ dataQ_bg_raw = dataQ_bg_full
 varNamesM_full = colnames(dataM_bg_full)
 varNamesQ_full = colnames(dataQ_bg_full)
 
-varNamesHF = [:survIndustryBG, :survConsBG];
-varNamesLF = [:gdpBG,:gdp2]
-varOrder   = [:survIndustryBG, :gdpBG,:gdp2, :survConsBG]
+varNamesHF = [:survIndustryBG];
+varNamesLF = [:gdpBG]
+varOrder   = [:survIndustryBG, :gdpBG]
 
 # select only the needed data and transform it if needed
 dataM_bg_tab = dataM_bg_raw[varNamesHF]
 dataQ_bg_tab = percentchange(dataQ_bg_raw[varNamesLF])
 
 
-dataLF_tab = dataQ_bg_tab[1:4];
-dataHF_tab = dataM_bg_tab[1:16];
+# dataLF_tab = dataQ_bg_tab[1:4];
+# dataHF_tab = dataM_bg_tab[1:16];
+dataLF_tab = dataQ_bg_tab;
+dataHF_tab = dataM_bg_tab;
 
 
 # beyond this point we shouldn't need any more input from the user, i.e. we switch from Q and M (if you have monthly and quarterly data) or A and Q (if you have annual and quarterly) to HF and LF
@@ -51,16 +53,14 @@ fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the
 fvarNames = colnames(fdataHF_tab)                # full list of the variable names
 
 
-z_n = size(z_tab,2);    # number of z vars
-z_mat = values(z_tab)
-z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
 YY = values(fdataHF_tab)
 datesHF = timestamp(fdataHF_tab)
 datesLF = timestamp(dataLF_tab)
 freqL_date = Month(datesLF[2])-Month(datesLF[1])
 freqH_date = Month(datesHF[2])-Month(datesHF[1])
 
-freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1))) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+# tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
+freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),0) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
 
 p = 2; # number of lags
 # n = 3; # number of vars
@@ -68,7 +68,7 @@ p = 2; # number of lags
 k = n*(p+1); kn = k*n
 Tfn = n*Tf;
 # YY = rand(Tf,n);
-YY[2,1] = NaN; YY[4,1] = NaN; YY[4,4] = NaN;
+# YY[2,1] = NaN; YY[4,1] = NaN; YY[3,3] = NaN;
 # YY[:,z_var] = fill(NaN, Tf,1);
 
 YYt = (YY')
@@ -92,12 +92,48 @@ Sosp = sparse(So);
 
 # Go = HB So ; Go yo = HB So yo = HB YY[So_bit]
 B0 = 1.0*I(n)
-B1 = rand(n,n)
-B2 = rand(n,n)*0.1
+B1 = 1.0*I(n)
+B2 = B1*0.1
 
 
 blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
-# lin = LinearIndices(blk)
+
+
+Σt_inv  = 0.01*Matrix(I,n,n)
+H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,blk);
+Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+
+b0 = zeros(n,)
+cB = repeat(b0,Tf);
+X = sparse(Matrix(1.0I, Tfn, Tfn))
+Gm = H_Bsp*Smsp
+Go = H_Bsp*Sosp
+longyo = vYYt[vec(So_bit)];
+
+
+Kym     = Gm'*Σsp_inv*Gm
+CL = cholesky(Hermitian(Kym))
+μ_y = CL.U\(CL.L\Gm'*Σsp_inv)*(X*cB-Go*longyo)
+
+# YYt[Sm_bit] = μ_y + CL.U\randn(nm,)
+
+
+M_zsp, z_vec, T_z = BEAVARs.makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+O_zsp = sparse(I,T_z,T_z)*0.0000001;
+MOiM = M_zsp'*(O_zsp\M_zsp)
+MOiz = M_zsp'*(O_zsp\z_vec)
+KymBar = MOiM + Kym;
+
+CLBar = cholesky(Hermitian(KymBar))
+μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
+YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
+
+
+
+
+
+
+# Old code# lin = LinearIndices(blk)
 
 # bbm = BlockBandedMatrix(ones(Float64,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
 
@@ -138,56 +174,42 @@ blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
 # lin_ind = deepcopy(Σ_linInt_sp.nzval)
 
 
-xx = rand(n,n);
-Σt_inv  = xx'*xx;
-H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,blk);
-Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+# T_z, n_z = size(z_tab);    # number of z vars
+# z_mat = values(z_tab)
+# global M_z = zeros(T_z*n_z,nm)
+# global z_vec = zeros(T_z*n_z,)
+# for ii_z = 1:n_z # iterator going through each variable in z_tab (along the columns)
+#     datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
+#     iter = CartesianIndices(YYt)
+#     ym_ci = iter[Sm_bit] # a vector of y_m with cartesian indices of the missing values in YYt
+#     z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
+#     z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
 
-b0 = zeros(n,)
-cB = repeat(b0,Tf);
-X = sparse(Matrix(1.0I, Tfn, Tfn))
-Gm = H_Bsp*Smsp
-Go = H_Bsp*Sosp
-longyo = vYYt[vec(So_bit)];
+#     M_inter_ii = zeros(T_z,nm)
+#     M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
 
+#     if size(datesHF,1)!==size(M_z_ii,2)
+#         error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
+#     end
 
-Kym     = Gm'*Σsp_inv*Gm
-CL = cholesky(Hermitian(Kym))
-μ_y = CL.U\(CL.L\Gm'*Σsp_inv)*(X*cB-Go*longyo);
+#     # we need to watch out with the dates due to how the intertemporal constraint works Take for example growth rates Q and M
+#     # y_t = 1/3 y_t - 2/3 y_{t-1} \dots - - 2/3 y_{t-3} - 1/3 y_{t-5}
+#     # Intuitively, Q1 quarterly GDP (e.g. 01.01.2000) is the weighted sum of the monthly March, February, January, December, November, and October
+#     # if y_t^Q is 01.01.2000, we need +2 and -2 months for the weights
+#     if freq_mix_tp==(1,3,0)
+#         hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+#     elseif freq_mix_tp==(3,12,0)
+#         # quarterly and yearly data with growth rates
+#         hfWeights = [1/4; 2/4; 3/4; 1; 3/4; 2/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+#     else
+#         error("This combination of frequencies and transformation has not been implemented")
+#     end
 
-YYt[Sm_bit] = μ_y + CL.U\randn(nm,)
-
-iter = CartesianIndices(YYt)
-ym_ci = iter[Sm_bit] # a vector of y_m with cartesian indices of the missing values in YYt
-
-ii_z = 1;   # iterator going through each variable in z_tab (along the columns)
-
-datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
-z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
-z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
-
-global M_inter_ii = zeros(size(z_tab[varNamesLF[ii_z]],1),nm)
-M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
-
-if size(datesHF,1)!==size(M_z_ii,2)
-    error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
-end
-
-# we need to watch out with the dates due to how the intertemporal constraint works Take for example growth rates Q and M
-# y_t = 1/3 y_t - 2/3 y_{t-1} \dots - - 2/3 y_{t-3} - 1/3 y_{t-5}
-# Intuitively, Q1 quarterly GDP (e.g. 01.01.2000) is the weighted sum of the monthly March, February, January, December, November, and October
-# if y_t^Q is 01.01.2000, we need +2 and -2 months for the weights
-if freq_mix_tp==(1,3)
-    hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
-elseif freq_mix_tp==(3,12)
-    # quarterly and yearly data with growth rates
-    hfWeights = [1/4; 2/4; 3/4; 1; 3/4; 2/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
-
-end
-
-# ii_zi=4 # iterator going through each time point in datesHF
-for ii_zi in eachindex(datesLF_ii)
-    ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
-    # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
-    M_z_ii[ii_zi,ii_M-div((n_hfw-1),2): ii_M+div((n_hfw-1),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
-end
+#     for ii_zi in eachindex(datesLF_ii) # iterator going through each time point in datesHF
+#         ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
+#         # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
+#         M_z_ii[ii_zi,ii_M-div((n_hfw-1),2): ii_M+div((n_hfw-1),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+#     end
+#     M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
+#     z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
+# end
