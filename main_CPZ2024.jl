@@ -38,7 +38,7 @@ dataQ_bg_tab = percentchange(dataQ_bg_raw[varNamesLF])
 
 
 dataLF_tab = dataQ_bg_tab[1:4];
-dataHF_tab = dataM_bg_tab[1:10];
+dataHF_tab = dataM_bg_tab[1:16];
 
 
 # beyond this point we shouldn't need any more input from the user, i.e. we switch from Q and M (if you have monthly and quarterly data) or A and Q (if you have annual and quarterly) to HF and LF
@@ -166,30 +166,28 @@ datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
 z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
 z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
 
-M_inter_ii = zeros(size(z_tab[varNamesLF[ii_z]],1),nm)
-M_z_ii = @views M_inter[:,z_Mind_vec_ii.==1]
+global M_inter_ii = zeros(size(z_tab[varNamesLF[ii_z]],1),nm)
+M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
 
 if size(datesHF,1)!==size(M_z_ii,2)
     error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
 end
 
-if freq_mix_tp[2] == 3
-    # we need to shift the dates due to the way the intertemporal restriction works
-    # y_t = 1/3 y_t - 2/3 y_{t-1} \dots - - 2/3 y_{t-3} - 1/3 y_{t-5}
-    # Intuitively, Q1 quarterly GDP (e.g. 01.01.2000) is the weighted sum of the monthly March, February, January, December, November, and October
-    # so I am shifting 01.01.2000 to 03.01.2000
-    datesLF_ii = datesLF_ii+Month(2)    
+# we need to watch out with the dates due to how the intertemporal constraint works Take for example growth rates Q and M
+# y_t = 1/3 y_t - 2/3 y_{t-1} \dots - - 2/3 y_{t-3} - 1/3 y_{t-5}
+# Intuitively, Q1 quarterly GDP (e.g. 01.01.2000) is the weighted sum of the monthly March, February, January, December, November, and October
+# if y_t^Q is 01.01.2000, we need +2 and -2 months for the weights
+if freq_mix_tp==(1,3)
+    hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+elseif freq_mix_tp==(3,12)
+    # quarterly and yearly data with growth rates
+    hfWeights = [1/4; 2/4; 3/4; 1; 3/4; 2/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+
 end
 
-ii_zi=1 # iterator going through each time point in datesHF
-datesHF.==datesLF[ii_zi]
-
-
-hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3];
-M_z[1,1:5]=hfWeights;
-M_z[2,2:6]=hfWeights;
-M_z[3,3:7]=hfWeights;
-M_z[4,4:8]=hfWeights
-
-
-M_inter
+# ii_zi=4 # iterator going through each time point in datesHF
+for ii_zi in eachindex(datesLF_ii)
+    ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
+    # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
+    M_z_ii[ii_zi,ii_M-div((n_hfw-1),2): ii_M+div((n_hfw-1),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+end
