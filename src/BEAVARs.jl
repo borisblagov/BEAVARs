@@ -616,6 +616,83 @@ function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_
 end # end function fcastChan2020_LBA_csv()
 
 
+#----------------------------------------
+#
+# CPZ 2024 functions
+#
+#----------------------------------------
+
+
+
+
+@doc raw"""
+# blkDiagMat_sp,blockMatInd_vec = makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
+
+Initializes a block-diagonal matrix with p optional blocks below the main diagonal matrix and populates it.
+
+After you have done so, you can later update the entries of the matrix by simply using 
+
+```lang=julia
+    blkDiagMat_sp.nzval[:] = @views blockMat[blkDiagMat_sp]
+```
+
+It can be used to generate the shape of H_B or Σ from Chan, Poon, and Zhu (2024) which hast the linear indices of the coefficient matrix.
+
+"""
+function makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
+
+    type = eltype(blockMat)
+
+    # initialize first the large matrix
+    blkDiagMat = zeros(type,Tfn,Tfn)
+
+    # The loop first populates the main block-diagonal (ij = 0)
+    # then it populates the first off-diagonal (ij = 1), 
+    # but stops before the last bottom right block, which is on the main diagonal and under which there is no entry
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMat[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = ones(type,n,n)
+        end
+    end
+    blkDiagMat_sp = sparse(blkDiagMat)
+
+    # Now we will use linear indices to map the values in blockMat to their positions in blkDiagMat
+    # - first initialize a matrix with Int as indices cannot be other than Int numbers
+    blkDiagMatInt_sp = convert.(Int,blkDiagMat_sp)
+    # - take the linear indices of blockMat
+    blockMatInd = LinearIndices(blockMat)
+
+    # - populate the diagonal of the Int block-diag matrix with the linear indices of blockMat
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMatInt_sp[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = blockMatInd[ :, 1 + (ij-0)*n : n + (ij-0)*n]
+        end
+    end
+
+    # - copy those linear indices to be used
+    blockMatInd_vec = deepcopy(blkDiagMatInt_sp.nzval)
+
+       # we can now update
+    blkDiagMat_sp.nzval[:] = blockMat[blockMatInd_vec]
+
+    return blkDiagMat_sp,blockMatInd_vec
+
+
+    # if you would like to use the BlockBandedMatrices package you can do so. The code for the loops above would be
+    # blk = blockMat  
+    # lin = LinearIndices(blk)
+    # bbm = BlockBandedMatrix(ones(Float64,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
+    # bbm_lin = BlockBandedMatrix(ones(Int,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
+    # for ij = 0:p
+    #     for ii in 1:div(Tfn,n)-ij
+    #         bbm_lin[Block(ii+ij,ii)]=lin[ 1 + (ij-0)*n : n + (ij-0)*n ,:]
+    #     end
+    # end
+    # blklin_ind = deepcopy(bbm_lin.data)
+    # blkDiagMat_sp=sparse(bbm)
+    # blkDiagMat_sp.nzval[:] = @view blk[blklin_ind];
+
+end
 
 
 include("init_functions.jl")
