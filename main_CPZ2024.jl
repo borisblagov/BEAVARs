@@ -30,7 +30,7 @@ varNamesQ_full = colnames(dataQ_bg_full)
 
 varNamesHF = [:survIndustryBG];
 varNamesLF = [:gdpBG]
-varOrder   = [:survIndustryBG, :gdpBG]
+varOrder   = [:gdpBG,:survIndustryBG]
 
 # select only the needed data and transform it if needed
 dataM_bg_tab = dataM_bg_raw[varNamesHF]
@@ -62,7 +62,7 @@ freqH_date = Month(datesHF[2])-Month(datesHF[1])
 # tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
 freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),0) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
 
-p = 2; # number of lags
+p = 5; # number of lags
 # n = 3; # number of vars
 (Tf,n) = size(YY); # full time span (with initial conditions)
 k = n*(p+1); kn = k*n
@@ -91,16 +91,16 @@ Smsp = sparse(Sm);
 Sosp = sparse(So);
 
 # Go = HB So ; Go yo = HB So yo = HB YY[So_bit]
-B0 = 1.0*I(n)
-B1 = 1.0*I(n)
-B2 = B1*0.1
+B0 = -1.0*I(n)
+B1 = 1.0*I(n); B1 = [0.26 0; 0 0.96]
+B2 = zeros(size(B1))
 
 
 blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
 
 
-Σt_inv  = 0.01*Matrix(I,n,n)
-H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,blk);
+Σt_inv  = 100*Matrix(I,n,n); Σt_inv = inv([0.000143 0; 0 0.000473])
+H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
 Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
 
 b0 = zeros(n,)
@@ -119,7 +119,7 @@ CL = cholesky(Hermitian(Kym))
 
 
 M_zsp, z_vec, T_z = BEAVARs.makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
-O_zsp = sparse(I,T_z,T_z)*0.0000001;
+O_zsp = sparse(I,T_z,T_z)*0.000002;
 MOiM = M_zsp'*(O_zsp\M_zsp)
 MOiz = M_zsp'*(O_zsp\z_vec)
 KymBar = MOiM + Kym;
