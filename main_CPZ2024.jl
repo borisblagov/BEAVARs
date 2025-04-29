@@ -131,9 +131,9 @@ Go = H_Bsp*Sosp
 
 Kym     = Gm'*Σsp_inv*Gm
 CL = cholesky(Hermitian(Kym))
-μ_y = CL.U\(CL.L\Gm'*Σsp_inv)*(X*cB-Go*longyo)
+μ_y = CL.UP\(CL.PtL\Gm'*Σsp_inv)*(X*cB-Go*longyo)
 
-# YYt[Sm_bit] = μ_y + CL.U\randn(nm,)
+# YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
 
 
 M_zsp, z_vec, T_z = BEAVARs.makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
@@ -143,10 +143,15 @@ MOiz = M_zsp'*(O_zsp\z_vec)
 KymBar = MOiM + Kym;
 
 # CLBar = cholesky(Hermitian(KymBar))
-CLBar = cholesky(Hermitian(Matrix(KymBar)));
-μ_yBar = (CLBar.U)\(CLBar.L\(MOiz + Kym*μ_y))
+# μ_yBar = ((CLBar.U)')\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
+# CLBar = cholesky(Hermitian(Matrix(KymBar)));
+# μ_yBar = ((CLBar.PtL))\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
+CLBar = cholesky(Hermitian(KymBar))
+# C = CLBar.PtL;
+# Ct = CLBar.UP;
+μ_yBar = (CLBar.UP)\(CLBar.PtL\(MOiz + Kym*μ_y))
 
-YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
+YYt[Sm_bit] = μ_yBar +  Ct\randn(nm,)
 
 plot(YY)
 
