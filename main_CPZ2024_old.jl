@@ -1,5 +1,13 @@
 
-# Old code# lin = LinearIndices(blk)
+# Old code
+
+# n = 3; # number of vars
+# YY = rand(Tf,n);
+# YY[2,1] = NaN; YY[4,1] = NaN; YY[3,3] = NaN;
+# YY[:,z_var] = fill(NaN, Tf,1);
+
+
+# lin = LinearIndices(blk)
 
 # bbm = BlockBandedMatrix(ones(Float64,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
 
@@ -79,3 +87,15 @@
 #     M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
 #     z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
 # end
+
+
+global cB = repeat(b0,Tf);
+for io = 0:p-1
+    ytmp = zeros(n,);
+    for kk = 0:io
+        ytmp1 = Bmat[:,1+(p-io+kk)*n-n:(p-io+kk)*n+n-n]*Y0[p-kk,:];  # This is \sum_1^p B_j y_{t-j}. For t = 0 : cB = b0 + B_p y0
+        ytmp = ytmp+ytmp1;
+    end
+    ytmp = ytmp + b0;
+    cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
+end

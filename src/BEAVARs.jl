@@ -701,7 +701,7 @@ end
 @doc raw"""
 
 """
-function makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf)
+function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf)
     
     z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
     T_z, n_z = size(z_tab);    # number of z vars
@@ -747,6 +747,33 @@ function makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm
     return M_zsp, z_vec, T_z
 end
 
+@doc raw"""
+    CPZ_update_cB!()
+
+    Uses
+    B = [B1 B2] =  [a b e f 
+                    c d g h]
+    and populates the cB vector by taking 
+    B1*y_{-1} + B2*y_{-2}
+
+    The indices loop on line 4 can also be made to support
+    B = [B0 B1 B2]
+    structure, by omitting B0 and starting from B1 (same as above) if you use
+    Bmat[:,1+(p-io+kk)*n:(p-io+kk)*n+n]
+"""
+function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_ind::Vector{Int64},p::Int,n::Int)
+    for io = 0:p-1
+        ytmp = zeros(n,);
+        for kk = 0:io
+            ytmp1 = Bmat[:,1+(p-io+kk)*n-n:(p-io+kk)*n+n-n]*Y0[p-kk,:];  # This is \sum_1^p B_j y_{t-j}. For t = 0 : cB = b0 + B_p y0
+            ytmp = ytmp+ytmp1;
+        end
+        ytmp = ytmp + b0;
+        cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
+    end
+    cB[n*p-n+1+n : end]=b0[cB_b0_ind]
+    return cB
+end
 
 include("init_functions.jl")
 include("Banbura2010.jl")

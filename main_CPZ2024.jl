@@ -42,6 +42,16 @@ dataHF_tab = dataM_bg_tab;
 
 # beyond this point we shouldn't need any more input from the user, i.e. we switch from Q and M (if you have monthly and quarterly data) or A and Q (if you have annual and quarterly) to HF and LF
 
+
+
+b0 = zeros(n,)
+B0 = -1.0*I(n)
+B1 = 1.0*I(n); B1 = [0.26 0; 0 0.96]
+B2 = zeros(size(B1))
+blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
+Σt_inv  = 100*Matrix(I,n,n); Σt_inv = inv([0.00014309 0; 0 0.00047340])
+
+
 # create the final z_tab
 z_tab = dataLF_tab;
 # add the z_tab as NaN values in the high-frequency tab
@@ -60,13 +70,10 @@ freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)
 
 YY = values(fdataHF_tab)
 Y0 = @views YY[1:p,:]
-# n = 3; # number of vars
+
 (Tf,n) = size(YY); # full time span (with initial conditions)
 k = n*(p+1); kn = k*n
 Tfn = n*Tf;
-# YY = rand(Tf,n);
-# YY[2,1] = NaN; YY[4,1] = NaN; YY[3,3] = NaN;
-# YY[:,z_var] = fill(NaN, Tf,1);
 
 YYt = (YY');
 vYYt = vec(YYt);
@@ -98,43 +105,28 @@ Sosp = sparse(So);
 
 
 
-
-
-B0 = -1.0*I(n)
-B1 = 1.0*I(n); B1 = [0.26 0; 0 0.96]
-B2 = zeros(size(B1))
-
-
-blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
-
-
-Σt_inv  = 100*Matrix(I,n,n); Σt_inv = inv([0.00014309 0; 0 0.00047340])
 H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
 Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,2));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
 
-Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
+# Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
 
 
-X = sparse(Matrix(1.0I, Tfn, Tfn))
+Xb = sparse(Matrix(1.0I, Tfn, Tfn))
 
-b0 = zeros(n,)
 global cB = repeat(b0,Tf);
-for io = 0:p-1
-    global ytmp = zeros(n,);
-    for kk = 0:io
-        ytmp1 = blk[:,1+(p-io+kk)*n:(p-io+kk)*n+n]*Y0[p-kk,:];  # This is \sum_1^p B_j y_{t-j}. For t = 0 : cB = b0 + B_p y0
-        ytmp = ytmp+ytmp1;
-    end
-    ytmp = ytmp + b0;
-    cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
-end
+
+
+# cB[n*p-n+1+n : Tfn]=b0[cB_b0_ind]
+
+
 Gm = H_Bsp*Smsp
 Go = H_Bsp*Sosp
 
 
 Kym     = Gm'*Σsp_inv*Gm
 CL = cholesky(Hermitian(Kym))
-μ_y = CL.UP\(CL.PtL\Gm'*Σsp_inv)*(X*cB-Go*longyo)
+μ_y = CL.UP\(CL.PtL\Gm'*Σsp_inv)*(Xb*cB-Go*longyo)
 
 # YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
 
@@ -172,7 +164,7 @@ XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
 K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
 cholK_β = cholesky(Hermitian(K_β));
 beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
-# CSig = sparse(1:n,1:n,sqrt.(sigmaP));
+
 
 ndraws = nsave+nburn;
 store_beta=zeros(n^2*p+n,nsave)
@@ -180,12 +172,11 @@ beta = beta_hat + cholK_β.UP\randn(k*n);
 
 k_nc = n*p; 
 B_draw = reshape(beta,k_nc+1,n)'
-# xx=randn(10,3); tm = rand(3,);
-# xx = diagm(sprand(Float64, 10, 0.75));
-# Σ = xx'*xx
 
-# CLSig = cholesky(Hermitian(Σ))
-# mu = (CLSig.U)\(CLSig.L\tm)
 
-# CLSig = cholesky(Hermitian(sparse(Σ)))
-# mu = (CLSig.U)\(CLSig.L\tm)
+
+# updating cB
+BEAVARs.CPZ_update_cB!(cB,blk,b0,Y0,cB_b0_ind,p,n)
+
+# updating H_B
+H_Bsp.nzval[:] = -blk[blk_ind]

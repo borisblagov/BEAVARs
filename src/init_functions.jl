@@ -1,7 +1,7 @@
 
 """
     mlag(Yfull::Matrix{Float64},p::Integer)
-    Creates lags of a matrix for a VAR representation with a constant on the right
+    Creates lags of a matrix for a VAR representation with a constant on the right of X
         Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
 """
 function mlag(Yfull::Matrix{Float64},p::Integer)
@@ -12,8 +12,8 @@ function mlag(Yfull::Matrix{Float64},p::Integer)
         X[:,1+n*(i-1):n+n*(i-1)] = Yfull[p-i+1:end-i,:]
     end
     X[:,end] = ones(T,1)
-    const_loc = 0;
-    Y = Yfull[p+1:end,:]
+    const_loc = 0;          # means the constant is on the right of X, i.e. the bottom of beta in X*β   
+    Y = @views Yfull[p+1:end,:]
     return Y, X, T, n, const_loc
 end
 
@@ -64,7 +64,7 @@ function ols(Y,X)
     n = size(Y,2)
     β = vec(X\Y);
     ε = Y-X*reshape(β,size(X,2),n);
-    σ_sq = ε'*ε/size(Y,1);
+    σ_sq = ε'*ε/(size(Y,1)-size(X,2));
     return β, ε, σ_sq
 end
 
@@ -83,7 +83,7 @@ deltaP has the constant on the bottom and the lags (1) to (p) in rows [1:end-1,:
 
 """
 function trainPriors(Z0::Matrix{Float64},p::Int64)
-    Y, X, T, n = mlag(Z0,p)     # mlag takes constant from the right
+    Y, X, T, n, const_loc = mlag(Z0,p)     # mlag takes constant from the right
     mu_prior = vec(mean(Y, dims=1));
     deltaP = zeros(p+1,n)
     sigmaP = vec(zeros(n,1))
@@ -91,7 +91,7 @@ function trainPriors(Z0::Matrix{Float64},p::Int64)
     # Do univariate AR(p) linear regressions with constant,
     # Assumes that if there is a constant in X is on the right
     for ii = 1:n
-        b,res,sig = ols(Y[:,ii],[X[:,ii:n:end-1] ones(T,1)])
+        b,res,sig = ols(Y[:,ii],[X[:,ii:n:end-1] X[:,end]])
         deltaP[:,ii] = b
         sigmaP[ii,:] = sig
     end
