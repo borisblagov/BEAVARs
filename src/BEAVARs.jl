@@ -22,7 +22,7 @@ export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 export makeSetup, fortschr!, beavar, dispatchModel, makeOutput
 
 # Structures, to be uncommented later
-export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDef2020_strct, outChan2020_LBA_csv, VARModelType
+export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType
 
 
 function fortschr!(Yfor,p,A)
@@ -48,7 +48,7 @@ abstract type modelSetup end
 abstract type modelHypSetup end
 
 # empty structure for initialising the model
-struct hypDef2020_strct <: modelHypSetup end
+struct hypDefault_strct <: modelHypSetup end
 
 # structure initializing the VAR
 @with_kw struct VARSetup <: modelSetup
@@ -153,11 +153,11 @@ function makeHypSetup(::Banbura2010_type)
 end
 
 
-function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDef2020_strct())
+function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
     setup_str, model_type = makeSetup(YY,model_str,p,n_irf,n_fcst,nburn,nsave);
     
     # checking if user supplied the hyperparameter structure
-    if isa(hyp,hypDef2020_strct)
+    if isa(hyp,hypDefault_strct)
         # if not supplied, make a default one
         hyp_strct = makeHypSetup(model_type)
         # println("using the default hyperparameters")
@@ -226,13 +226,13 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
     K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
     cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.U\(cholK_β.L\(beta_Minn./V_Minn + XiSig * Yt))
+    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
     # CSig = sparse(1:n,1:n,sqrt.(sigmaP));
     
     ndraws = nsave+nburn;
     store_beta=zeros(n^2*p+n,nsave)
     for ii = 1:ndraws 
-        beta = beta_hat + cholK_β.U\randn(k*n);
+        beta = beta_hat + cholK_β.UP\randn(k*n);
         if ii>nburn
             store_beta[:,ii-nburn] = beta;
         end

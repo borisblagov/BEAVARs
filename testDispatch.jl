@@ -23,5 +23,5 @@ VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_Minn",p=1,nburn=100,nsave=500);
 VAR_str, Hyp_str = beavar(YY,"Banbura2010",p=1,nburn=100,nsave=500,hyp=hyp_mine);
 
 
-@time Chan2020_LBA_csv(YY,VAR_str,Hyp_str);
-@btime Chan2020_LBA_Minn(YY,VAR_str,Hyp_str);
+# @time Chan2020_LBA_csv(YY,VAR_str,Hyp_str);
+# @btime Chan2020_LBA_Minn(YY,VAR_str,Hyp_str);

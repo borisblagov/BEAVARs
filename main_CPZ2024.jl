@@ -113,6 +113,10 @@ H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
 Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
 
 Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
+
+
+X = sparse(Matrix(1.0I, Tfn, Tfn))
+
 b0 = zeros(n,)
 global cB = repeat(b0,Tf);
 for io = 0:p-1
@@ -124,7 +128,6 @@ for io = 0:p-1
     ytmp = ytmp + b0;
     cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
 end
-X = sparse(Matrix(1.0I, Tfn, Tfn))
 Gm = H_Bsp*Smsp
 Go = H_Bsp*Sosp
 
@@ -147,13 +150,42 @@ KymBar = MOiM + Kym;
 # CLBar = cholesky(Hermitian(Matrix(KymBar)));
 # μ_yBar = ((CLBar.PtL))\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
 CLBar = cholesky(Hermitian(KymBar))
-# C = CLBar.PtL;
-# Ct = CLBar.UP;
+# C = CLBar.PtL; # Ct = CLBar.UP;
 μ_yBar = (CLBar.UP)\(CLBar.PtL\(MOiz + Kym*μ_y))
 
-YYt[Sm_bit] = μ_yBar +  Ct\randn(nm,)
+YYt[Sm_bit] = μ_yBar +  CLBar.UP\randn(nm,)
 
-plot(YY)
+plot(YY.*100)
 
 
+hypSetup=hypChan2020()
+Y, X, T, n = mlag_r(YY,p)
 
+Yt = vec(Y')
+
+(deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
+
+(idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+k = n*p+1;
+Xsur = SUR_form(X,n)
+XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
+K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
+cholK_β = cholesky(Hermitian(K_β));
+beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
+# CSig = sparse(1:n,1:n,sqrt.(sigmaP));
+
+ndraws = nsave+nburn;
+store_beta=zeros(n^2*p+n,nsave)
+beta = beta_hat + cholK_β.UP\randn(k*n);
+
+k_nc = n*p; 
+B_draw = reshape(beta,k_nc+1,n)'
+# xx=randn(10,3); tm = rand(3,);
+# xx = diagm(sprand(Float64, 10, 0.75));
+# Σ = xx'*xx
+
+# CLSig = cholesky(Hermitian(Σ))
+# mu = (CLSig.U)\(CLSig.L\tm)
+
+# CLSig = cholesky(Hermitian(sparse(Σ)))
+# mu = (CLSig.U)\(CLSig.L\tm)
