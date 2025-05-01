@@ -52,20 +52,13 @@ blk = [B0 B1 B2 B2*0.1 B2*0.01 B2*0.01]
 Σt_inv  = 100*Matrix(I,n,n); Σt_inv = inv([0.00014309 0; 0 0.00047340])
 
 
-# create the final z_tab
-z_tab = dataLF_tab;
-# add the z_tab as NaN values in the high-frequency tab
-fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), dataLF_tab[varNamesLF]),method=:outer)
-fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the user wants them
-fvarNames = colnames(fdataHF_tab)                # full list of the variable names
-datesHF = timestamp(fdataHF_tab)
-datesLF = timestamp(dataLF_tab)
-freqL_date = Month(datesLF[2])-Month(datesLF[1])
-freqH_date = Month(datesHF[2])-Month(datesHF[1])
+# Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
 
 
-# tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
-freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),0) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+# cB[n*p-n+1+n : Tfn]=b0[cB_b0_ind]
+
+
+fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TAfrequencies(dataLF_tab,dataHF_tab,varOrder)
 
 
 YY = values(fdataHF_tab)
@@ -101,20 +94,12 @@ So = S_full[:,indL_non_wide]
 Smsp = sparse(Sm);
 Sosp = sparse(So);
 
-
-
-
 # Initialize matrices
 H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
 Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
 cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,2));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
 Xb = sparse(Matrix(1.0I, Tfn, Tfn))
 cB = repeat(b0,Tf);
-
-# Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
-
-
-# cB[n*p-n+1+n : Tfn]=b0[cB_b0_ind]
 
 
 Gm = H_Bsp*Smsp
@@ -128,7 +113,7 @@ CL = cholesky(Hermitian(Kym))
 # YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
 
 
-M_zsp, z_vec, T_z = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+M_zsp, z_vec, T_z = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,(3,12,1),nm,Tf);
 O_zsp = sparse(I,T_z,T_z)*0.0000002;
 MOiM = M_zsp'*(O_zsp\M_zsp)
 MOiz = M_zsp'*(O_zsp\z_vec)

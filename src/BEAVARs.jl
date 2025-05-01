@@ -728,9 +728,17 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         # if y_t^Q is 01.01.2000, we need +2 and -2 months for the weights
         if freq_mix_tp==(1,3,0)
             hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 1; hf_num2 = 1;  # this solves the range below ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2). This should give the indices -2, -1, 0, +1, +2
         elseif freq_mix_tp==(3,12,0)
             # quarterly and yearly data with growth rates
             hfWeights = [1/4; 2/4; 3/4; 1; 3/4; 2/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 1; hf_num2 = 1;  # this solves the range below ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2). This should give the indices -3, -2, -1, 0, +1, +2, +3
+        elseif freq_mix_tp==(1,3,1)
+            hfWeights = [1/3; 1/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 3; hf_num2 = -1;  # this solves the range below ii_M-div((n_hfw-hf_num),2): ii_M+div((n_hfw-hf_num),2). This should give the indices -0, +1, +2
+        elseif freq_mix_tp==(3,12,1)
+            hfWeights = [1/4; 1/4; 1/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 4; hf_num2 = -3;  # this solves the range below ii_M-div((n_hfw-hf_num),2): ii_M+div((n_hfw-hf_num),2). This should give the indices -0, +1, +2
         else
             error("This combination of frequencies and transformation has not been implemented")
         end
@@ -738,7 +746,7 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         for ii_zi in eachindex(datesLF_ii) # iterator going through each time point in datesHF
             ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
             # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
-            M_z_ii[ii_zi,ii_M-div((n_hfw-1),2): ii_M+div((n_hfw-1),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+            M_z_ii[ii_zi,ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
         end
         M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
         z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
@@ -774,6 +782,34 @@ function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_ind::Vector{Int64},
     cB[n*p-n+1+n : end]=b0[cB_b0_ind]
     return cB
 end
+
+
+function CPZ_prep_TAfrequencies(dataLF_tab,dataHF_tab,varOrder)
+
+# create the final z_tab
+    varNamesLF = colnames(dataLF_tab)
+    z_tab = dataLF_tab;
+    # add the z_tab as NaN values in the high-frequency tab
+    fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), dataLF_tab[varNamesLF]),method=:outer)
+    fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the user wants them
+    fvarNames = colnames(fdataHF_tab)                # full list of the variable names
+    datesHF = timestamp(fdataHF_tab)
+    datesLF = timestamp(dataLF_tab)
+    freqL_date = Month(datesLF[2])-Month(datesLF[1])
+    freqH_date = Month(datesHF[2])-Month(datesHF[1])
+
+
+    # tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
+    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),0) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+    return fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames
+end
+
+function CPZ_prep_Matrices(dataLF_tab,dataHF_tab,varOrder)
+
+
+
+end
+
 
 include("init_functions.jl")
 include("Banbura2010.jl")
