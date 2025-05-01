@@ -43,7 +43,7 @@ dataHF_tab = dataM_bg_tab;
 # beyond this point we shouldn't need any more input from the user, i.e. we switch from Q and M (if you have monthly and quarterly data) or A and Q (if you have annual and quarterly) to HF and LF
 
 
-
+n = 2
 b0 = zeros(n,)
 B0 = -1.0*I(n)
 B1 = 1.0*I(n); B1 = [0.26 0; 0 0.96]
@@ -104,17 +104,14 @@ Sosp = sparse(So);
 
 
 
-
+# Initialize matrices
 H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
 Σsp_inv, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
 cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,2));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
+Xb = sparse(Matrix(1.0I, Tfn, Tfn))
+cB = repeat(b0,Tf);
 
 # Y0[1:5,1]=[0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ;0.01404399 ]
-
-
-Xb = sparse(Matrix(1.0I, Tfn, Tfn))
-
-global cB = repeat(b0,Tf);
 
 
 # cB[n*p-n+1+n : Tfn]=b0[cB_b0_ind]
@@ -131,23 +128,20 @@ CL = cholesky(Hermitian(Kym))
 # YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
 
 
-M_zsp, z_vec, T_z = BEAVARs.makeMinter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+M_zsp, z_vec, T_z = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
 O_zsp = sparse(I,T_z,T_z)*0.0000002;
 MOiM = M_zsp'*(O_zsp\M_zsp)
 MOiz = M_zsp'*(O_zsp\z_vec)
 KymBar = MOiM + Kym;
 
-# CLBar = cholesky(Hermitian(KymBar))
-# μ_yBar = ((CLBar.U)')\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
-# CLBar = cholesky(Hermitian(Matrix(KymBar)));
-# μ_yBar = ((CLBar.PtL))\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
+
 CLBar = cholesky(Hermitian(KymBar))
 # C = CLBar.PtL; # Ct = CLBar.UP;
 μ_yBar = (CLBar.UP)\(CLBar.PtL\(MOiz + Kym*μ_y))
 
 YYt[Sm_bit] = μ_yBar +  CLBar.UP\randn(nm,)
 
-plot(YY.*100)
+plot(YY)
 
 
 hypSetup=hypChan2020()
@@ -155,7 +149,7 @@ Y, X, T, n = mlag_r(YY,p)
 
 Yt = vec(Y')
 
-(deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
+(deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
 
 (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
 k = n*p+1;
@@ -166,17 +160,17 @@ cholK_β = cholesky(Hermitian(K_β));
 beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
 
 
-ndraws = nsave+nburn;
-store_beta=zeros(n^2*p+n,nsave)
+# ndraws = nsave+nburn;
+# store_beta=zeros(n^2*p+n,nsave)
 beta = beta_hat + cholK_β.UP\randn(k*n);
 
 k_nc = n*p; 
 B_draw = reshape(beta,k_nc+1,n)'
 
-
-
+b0[:] = B_draw[:,1]
+blk[:,n+1:end] = B_draw[:,2:end]
 # updating cB
-BEAVARs.CPZ_update_cB!(cB,blk,b0,Y0,cB_b0_ind,p,n)
+BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],b0,Y0,cB_b0_ind,p,n)
 
 # updating H_B
 H_Bsp.nzval[:] = -blk[blk_ind]

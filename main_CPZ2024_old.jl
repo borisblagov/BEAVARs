@@ -99,3 +99,8 @@ for io = 0:p-1
     ytmp = ytmp + b0;
     cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
 end
+
+# CLBar = cholesky(Hermitian(KymBar))
+# μ_yBar = ((CLBar.U)')\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
+# CLBar = cholesky(Hermitian(Matrix(KymBar)));
+# μ_yBar = ((CLBar.PtL))\(sparse(CLBar.L)\(MOiz + Kym*μ_y))
