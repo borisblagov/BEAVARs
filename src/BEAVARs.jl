@@ -701,7 +701,7 @@ end
 @doc raw"""
 
 """
-function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf)
+function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-6)
     
     z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
     T_z, n_z = size(z_tab);    # number of z vars
@@ -719,7 +719,7 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
     
         if size(datesHF,1)!==size(M_z_ii,2)
-            error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
+            # error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
         end
     
         # we need to watch out with the dates due to how the intertemporal constraint works Take for example growth rates Q and M
@@ -752,7 +752,10 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
     end
     M_zsp = sparse(M_z);
-    return M_zsp, z_vec, T_z
+    O_zsp = sparse(I,T_z,T_z).*scVal;
+    MOiM = M_zsp'*(O_zsp\M_zsp);
+    MOiz = M_zsp'*(O_zsp\z_vec);
+    return M_zsp, z_vec, T_z, MOiM, MOiz
 end
 
 @doc raw"""
@@ -784,9 +787,11 @@ function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_ind::Vector{Int64},
 end
 
 
-function CPZ_prep_TAfrequencies(dataLF_tab,dataHF_tab,varOrder)
 
-# create the final z_tab
+@doc raw"""
+
+"""
+function CPZ_prep_TA(dataLF_tab,dataHF_tab,varOrder)
     varNamesLF = colnames(dataLF_tab)
     z_tab = dataLF_tab;
     # add the z_tab as NaN values in the high-frequency tab
@@ -804,10 +809,107 @@ function CPZ_prep_TAfrequencies(dataLF_tab,dataHF_tab,varOrder)
     return fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames
 end
 
-function CPZ_prep_Matrices(dataLF_tab,dataHF_tab,varOrder)
 
 
+@doc raw"""
 
+"""
+function CPZ_initMat(YY,blk,b0,Σt_inv,p)
+    (Tf,n) = size(YY); # full time span (with initial conditions)
+    k = n*(p+1); kn = k*n
+    Tfn = n*Tf;
+    
+    YYt = (YY');
+    vYYt = vec(YYt);
+        
+    Sm_bit = isnan.(YYt)
+    So_bit = .!isnan.(YYt)
+    longyo = vYYt[vec(So_bit)];
+
+    Y0 = @views YY[1:p,:]
+    if any(isnan.(Y0))
+        Y0[isnan.(Y0)]=zeros(size(Y0[isnan.(Y0)],1)); # for the first pass remove NaNs for zeroes
+        print("NaNs found in Y0, replaced with zeros");
+    end
+    
+    indC_nan_wide = findall(Sm_bit) #  Cartesian indices of missing values
+    # indC_non_wide = findall(!isnan,YYt)  # Cartesian indices of not missing values
+    indC_non_wide = findall(So_bit)  # Cartesian indices of not missing values
+    
+    # convert between linear and cartesian indices
+    indL_all = LinearIndices(YYt);
+    indL_nan_wide = indL_all[indC_nan_wide] # are the linear indices of NaN values
+    indL_non_wide = indL_all[indC_non_wide] # are the linear indices of non NaN values
+       
+    
+    nm = sum(Sm_bit);       # the number of missing values
+    S_full = I(Tf*n);
+    Sm = S_full[:,indL_nan_wide]; # Sm, selection matrix selecting the missing values
+    So = S_full[:,indL_non_wide]; # So, selection matrix selecting hte observed values
+    Smsp = sparse(Sm);            # sparse Sm
+    Sosp = sparse(So);            # sparse So
+    
+    # Initialize matrices
+    H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
+    Σ_invsp, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+    cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
+    Xb = sparse(Matrix(1.0I, Tfn, Tfn))
+    cB = repeat(b0,Tf);
+    
+
+    return YYt, Y0, H_Bsp, blk_ind, Σ_invsp, Σt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm
+end
+
+@doc raw"""
+
+"""
+function CPZ_draw!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+
+    # updating H_B
+    H_Bsp.nzval[:] = -structB_draw[sBd_ind];
+
+    # updating Σ_invsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+
+    Gm = H_Bsp*Smsp
+    Go = H_Bsp*Sosp
+    Kym     = Gm'*Σ_invsp*Gm
+    CL = cholesky(Hermitian(Kym))
+    μ_y = CL.UP\(CL.PtL\Gm'*Σ_invsp)*(Xb*cB-Go*longyo)
+
+    YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
+    return YYt
+end
+
+
+@doc raw"""
+    Draw with restrictions
+"""
+function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+
+    # updating H_B
+    H_Bsp.nzval[:] = -structB_draw[sBd_ind];
+
+    # updating Σ_invsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+
+    Gm = H_Bsp*Smsp
+    Go = H_Bsp*Sosp
+    Kym = Gm'*Σ_invsp*Gm
+    CL = cholesky(Hermitian(Kym))
+    μ_y = CL.UP\(CL.PtL\Gm'*Σ_invsp)*(Xb*cB-Go*longyo)
+
+    # KymBar = MOiM + Kym;
+    CLBar = cholesky(Hermitian(MOiM + Kym))
+    # C = CLBar.PtL; # Ct = CLBar.UP;
+    μ_yBar = (CLBar.UP)\(CLBar.PtL\(MOiz + Kym*μ_y))
+
+    YYt[Sm_bit] = μ_yBar +  CLBar.UP\randn(nm,)
+    return YYt
 end
 
 
