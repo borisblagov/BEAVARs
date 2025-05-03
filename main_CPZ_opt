@@ -114,37 +114,41 @@ Yt = vec(Y)
 (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
 
 (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-k = n*p+1; 
-Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
-Σhat_sp = Σt_inv.+0.000001
-kronIT_Σhat_sp = kron(T_speye,Σhat_sp);
+k = n*p+1;
+nk_speye = sparse(1:n*k,1:n*k,1.0); nk_speye.nzval[:] = 1.0./V_Minn;    # for updating prior in K_β
+T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
 Xsur = SUR_form(X,n)
-# XtΣ_inv = Xsur'*Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end] # in the Minn prior this is just XiSig = Xsur'*kron(T_speye,invSigDt_data) with invSigDt_data  = sparse(1:n,1:n,1.0); invSigDt_data.nzval[:] = 1.0./sigmaP;
-# XtΣ_inv = Xsur'*Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end]; # this is way too slow!
+XiSig = Xsur'*kron(T_speye,sparse(1:n,1:n,1.0./sigmaP))
 
-Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
-@btime $XtΣ_inv = $Xsur'*$kronIT_Σhat_sp;
-# @btime $XtΣ_inv2 = $Xsur'*$Σ_invsp_view;
-@btime $XtΣ_inv2 = $Xsur'*$Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
-
-XsurD = Matrix(Xsur);
-kronIT_Σhat_spD = Matrix(kronIT_Σhat_sp);
-XtΣ_invD = Matrix(XtΣ_inv);
-
-@btime mul!($XtΣ_invD,$XsurD',$kronIT_Σhat_spD);
-
-kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
-kronI_V_invsp.nzval[:] = 1.0./V_Minn;
-K_β = invSigDt_prior + XtΣ_inv*Xsur;
+nk_speye.nzval[:] = 1.0./V_Minn;
+K_β = nk_speye + XiSig*Xsur;
 # K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
 cholK_β = cholesky(Hermitian(K_β));
-beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XtΣ_inv * Yt))
+beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
 
 
 # ndraws = nsave+nburn;
 # store_beta=zeros(n^2*p+n,nsave)
 beta = beta_hat + cholK_β.UP\randn(k*n);
 
-B_draw = reshape(beta,k,n)'
+k_nc = n*p; 
+B_draw = reshape(beta,k_nc+1,n)'
+
 b0[:] = B_draw[:,1]
-structB_draw[:,n+1:end] = B_draw[:,2:end]
+blk[:,n+1:end] = B_draw[:,2:end]
+
+
+xx = sprand(10,hel)
+
+t1 = sparse(Matrix(1.0I, 5, 5))
+t2 = sparse(Matrix(1.0I, 5, 5))
+XC1.PtL\t2
+XC1 = cholesky(t1)
+XC2 = cholesky(t2)
+
+ldiv!(XC1.PtL,t1)
+ldiv!(XC1.PtL,rand(5,1))
+ldiv!(XC1.PtL,rand(5,))
+
+Y = zeros(5,)
+ldiv!(Y,XC1.PtL,rand(5,))
