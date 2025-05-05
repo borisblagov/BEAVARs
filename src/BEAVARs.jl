@@ -913,6 +913,80 @@ function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_i
 end
 
 
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
+
+    Y, X, T = mlag_r(YY,p)
+    Yt = vec(Y)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
+
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+
+    Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
+    Σhat_sp = Σt_inv.+0.000001
+    kronIT_Σhat_sp = kron(T_speye,Σhat_sp);
+    Xsur = SUR_form(X,n)
+
+    # Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
+    XtΣ_inv = Xsur'*kronIT_Σhat_sp;
+
+    kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
+    kronI_V_invsp.nzval[:] = 1.0./V_Minn;
+    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
+    cholK_β = cholesky(Hermitian(K_β));
+    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XtΣ_inv * Yt))
+
+    beta = beta_hat + cholK_β.UP\randn(k*n);
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    fit = zeros(size(Y))
+    ee = Y-mul!(fit,X,B_draw');
+
+    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
+
+    return beta,b0,B_draw,Σt_inv,structB_draw
+end
+
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
+    
+    ndraws = nsave+nburn;
+    store_YY = zeros(Tf,n,nsave);
+    store_beta=zeros(n^2*p+n,nsave);
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+            store_YY[:,:,ii-nburn] = YY;
+        end
+    end
+
+    return store_YY,store_beta
+end
+
+
+
+
 include("init_functions.jl")
 include("Banbura2010.jl")
 include("irfs.jl")
