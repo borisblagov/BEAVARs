@@ -241,7 +241,6 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
     cholK_β = cholesky(Hermitian(K_β));
     beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
-    # CSig = sparse(1:n,1:n,sqrt.(sigmaP));
     
     ndraws = nsave+nburn;
     store_beta=zeros(n^2*p+n,nsave)
@@ -866,12 +865,13 @@ function CPZ_initMat(YY,blk,b0,Σt_inv,p)
     # Initialize matrices
     H_Bsp, sBd_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
     Σ_invsp, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+    Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);
     cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
     Xb = sparse(Matrix(1.0I, Tfn, Tfn))
     cB = repeat(b0,Tf);
     
     inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_ind, sBd_ind, Σt_ind)
-    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str
+    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str
 end
 
 @doc raw"""
@@ -931,7 +931,44 @@ end
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
+function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind)
+
+    Y, X, T = mlag_r(YY,p)
+    Yt = vec(Y)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
+
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_inv = 1.0./V_Minn;
+    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
+    Xsur.nzval[:] .= X[Xsur_ind];    
+    XtΣ_inv = Xsur'*Σp_invsp;
+
+    kronI_V_invsp.nzval[:] = V_Minn_inv;
+    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
+    cholK_β = cholesky(Hermitian(K_β));
+    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn.*V_Minn_inv + XtΣ_inv * Yt))
+
+    beta = beta_hat + cholK_β.UP\randn(k*n);
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    fit = zeros(size(Y))
+    ee = Y-mul!(fit,X,B_draw');
+
+    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
+
+    return beta,b0,B_draw,Σt_inv,structB_draw
+end
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_Minn_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
 
     Y, X, T = mlag_r(YY,p)
     Yt = vec(Y)
@@ -972,11 +1009,57 @@ end
 
 
 
+
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_loop!(YY,setup_str,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf)
-    @unpack n,p,nburn,nsave = setup_str
+function CPZ_Minn_init(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
+
+    Y, X, T = mlag_r(YY,p)
+    Yt = vec(Y)
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
+
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+
+    # Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; 
+    T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
+    # Σhat_sp = Σt_inv;
+    kronIT_Σhat_sp = kron(T_speye,Σt_inv);
+    Xsur = SUR_form(X,n)
+
+    # Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
+    XtΣ_inv = Xsur'*kronIT_Σhat_sp;
+
+    kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
+    kronI_V_invsp.nzval[:] = 1.0./V_Minn;
+    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
+    cholK_β = cholesky(Hermitian(K_β));
+    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XtΣ_inv * Yt))
+
+    beta = beta_hat + cholK_β.UP\randn(k*n);
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    fit = zeros(size(Y))
+    ee = Y-mul!(fit,X,B_draw');
+
+    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
+
+    return beta,b0,B_draw,Σt_inv,structB_draw
+end
+
+
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind)
+    @unpack n,p,nburn,nsave = varSetup
     
     ndraws = nsave+nburn;
     store_YY = zeros(Tf,n,nsave);
@@ -988,7 +1071,7 @@ function CPZ_loop!(YY,setup_str,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YY
 
 
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind);
 
         
         if ii>nburn
@@ -1005,8 +1088,9 @@ end
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_loop_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
-    
+function CPZ_loop_old!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
+    @unpack n,p,nburn,nsave = varSetup
+
     ndraws = nsave+nburn;
     store_YY = zeros(Tf,n,nsave);
     store_beta=zeros(n^2*p+n,nsave);
@@ -1017,7 +1101,7 @@ function CPZ_loop_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,
 
 
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
 
         
         if ii>nburn

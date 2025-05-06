@@ -13,6 +13,7 @@ r,c = size(X);
 idi = repeat(1:r*n,inner=c);
 idj=repeat(1:c*n,r);
 Σhatt_inv_sp = randn(n,n);
+# Σhatt_inv_sp = 1.0I(n)
 Σ_invsp_full = kron(sparse(Matrix(1.0I, Tf, Tf)),Σhatt_inv_sp);
 # -------------------------------------------
 
