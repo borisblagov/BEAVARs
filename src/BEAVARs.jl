@@ -41,11 +41,13 @@ abstract type VARModelType end
 struct Chan2020_LBA_Minn_type <: VARModelType end
 struct Chan2020_LBA_csv_type <: VARModelType end
 struct Banbura2010_type <: VARModelType end
+struct CPZ2024_type <: VARModelType end
 
 
 # types for parameters (VAR setup parameters, hyperparameters, and output storage)
 abstract type modelSetup end
 abstract type modelHypSetup end
+abstract type functionInputs end
 
 # empty structure for initialising the model
 struct hypDefault_strct <: modelHypSetup end
@@ -61,7 +63,17 @@ struct hypDefault_strct <: modelHypSetup end
     const_loc::Int  # location of the constant
 end
 
-
+struct CPZ2024_Inputs <: functionInputs
+    Smsp
+    Sosp
+    Sm_bit
+    longyo
+    nm
+    Xb
+    cB_b0_ind
+    sBd_ind
+    Σt_ind
+end
 
 # Constructor
 @doc raw"""
@@ -132,9 +144,11 @@ function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst
         const_loc = 1;
         model_type = Chan2020_LBA_Minn_type()
     elseif model_str == "Banbura2010"
-        # hypSetup = hypBanbura2010()
         const_loc = 0;
         model_type = Banbura2010_type()
+    elseif model_str == "CPZ2024"
+        const_loc = 1;
+        model_type = CPZ2024_type()
     else
         error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
@@ -850,14 +864,14 @@ function CPZ_initMat(YY,blk,b0,Σt_inv,p)
     Sosp = sparse(So);            # sparse So
     
     # Initialize matrices
-    H_Bsp, blk_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
+    H_Bsp, sBd_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
     Σ_invsp, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
     cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
     Xb = sparse(Matrix(1.0I, Tfn, Tfn))
     cB = repeat(b0,Tf);
     
-
-    return YYt, Y0, H_Bsp, blk_ind, Σ_invsp, Σt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm
+    inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_ind, sBd_ind, Σt_ind)
+    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str
 end
 
 @doc raw"""
@@ -925,9 +939,10 @@ function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
 
     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
 
-    Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
-    Σhat_sp = Σt_inv.+0.000001
-    kronIT_Σhat_sp = kron(T_speye,Σhat_sp);
+    # Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; 
+    T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
+    # Σhat_sp = Σt_inv;
+    kronIT_Σhat_sp = kron(T_speye,Σt_inv);
     Xsur = SUR_form(X,n)
 
     # Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
@@ -960,7 +975,8 @@ end
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_loop!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
+function CPZ_loop!(YY,setup_str,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf)
+    @unpack n,p,nburn,nsave = setup_str
     
     ndraws = nsave+nburn;
     store_YY = zeros(Tf,n,nsave);
@@ -984,6 +1000,34 @@ function CPZ_loop!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,long
     return store_YY,store_beta
 end
 
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
+    
+    ndraws = nsave+nburn;
+    store_YY = zeros(Tf,n,nsave);
+    store_beta=zeros(n^2*p+n,nsave);
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+            store_YY[:,:,ii-nburn] = YY;
+        end
+    end
+
+    return store_YY,store_beta
+end
 
 
 
