@@ -1021,26 +1021,26 @@ end
 @doc raw"""
     Relation to Minn4 tries to better do the inverses
 """
-function CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp)
+function CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview)
 
     Y, X = mlagL!(YY,Y,X,p,n)
     (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors!(Y,X,n,mu_prior,deltaP,sigmaP,intercept);
 
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-    V_Minn_inv = 1.0./V_Minn;
+    (idx_kappa1,idx_kappa2, V_MinnDiag, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_invdiag = 1.0./V_MinnDiag;
     Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
-    kronI_V_invsp.nzval[:] = V_Minn_inv;
    
     
     Xsur_den[Xsur_CI] = X[X_CI]; 
     mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
-    kronI_V_invsp.nzval[:] = V_Minn_inv;
+    V_Minn_inv_elview[:] = V_Minn_invdiag;  # update the diagonal of V_Minn^-1
     mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
-    K_β = kronI_V_invsp + XtΣ_inv_X;
+    K_β = V_Minn_inv + XtΣ_inv_X;
     cholK_β = cholesky(Hermitian(K_β));    
     
-    prior_mean = V_Minn_inv.*beta_Minn;                   # V^-1_Minn * beta_Minn 
-    mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) <
+    prior_mean = V_Minn_invdiag.*beta_Minn;                   # V^-1_Minn * beta_Minn 
+    mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
+
 
     beta_hat = ldiv!(cholK_β.U,ldiv!(cholK_β.L,prior_mean));
 
@@ -1280,7 +1280,7 @@ end
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_loop4!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X)
+function CPZ_loop4!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview)
     @unpack n,p,nburn,nsave = varSetup
     
     ndraws = nsave+nburn;
@@ -1293,7 +1293,7 @@ function CPZ_loop4!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YY
 
 
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
         
         if ii>nburn

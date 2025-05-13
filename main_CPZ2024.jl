@@ -103,6 +103,9 @@ Xsur = SUR_form(X,n);
 Xsur_ind = repeat(1:T*(n*p+1),n); # indices from X to match to Xsur for updating Xsur
 Xsur.nzval[:] .= X[Xsur_ind];
 kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
+V_Minn_inv = 1.0*Matrix(I,n*k,n*k); 
+V_Minn_inv_elview = @view(V_Minn_inv[diagind(V_Minn_inv)]);
+
 
 # draw of the missing values
 YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
@@ -164,8 +167,12 @@ intercept = 1
 @time beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind);
 @time beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn2!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept);
 @time beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn3!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp);
-@time beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp);
+@time beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
+
+kronI_V_inv = Matrix(kronI_V_invsp);
+kronI_V_inv_view = @view(kronI_V_inv[diagind(kronI_V_inv)])
+@time kronI_V_inv_view[:] = V_Minn_inv;
 
 # plot(YY)
 
@@ -175,7 +182,7 @@ setup_str, model_type = makeSetup(YY,model_stre,p,16,8,nsave,nburn)
 @time store_YY, store_beta = BEAVARs.CPZ_loop!(YY, setup_str, hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind);
 @time store_YY, store_beta = BEAVARs.CPZ_loop2!(YY, setup_str, hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept);
 @time store_YY, store_beta = BEAVARs.CPZ_loop3!(YY, setup_str, hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X);
-@time store_YY, store_beta = BEAVARs.CPZ_loop4!(YY, setup_str, hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X);
+@time store_YY, store_beta = BEAVARs.CPZ_loop4!(YY, setup_str, hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,V_Minn_inv,V_Minn_inv_elview);
 # @btime store_YY, store_beta = BEAVARs.CPZ_loop_old!(YY,setup_str,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf);
 
 
