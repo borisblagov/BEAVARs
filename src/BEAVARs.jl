@@ -217,6 +217,7 @@ end
     ρ_0::Float64     = .9; 
     V_ρ::Float64     = 0.04;
     q::Float64       = 0.5;
+    nu0::Int         = 3;   # degrees of freedom to add for the inverse wishart distribution of the variance-covariance matrices
 end
 
 
@@ -724,6 +725,60 @@ end
 
 
 
+@doc raw"""
+# blkDiagMat_sp,blockMatInd_vec = makeBlkDiag_ns(Tfn::Int,n::Int,p::Int,blockMat)
+
+Initializes a non-sparse block-diagonal matrix with p optional blocks below the main diagonal matrix and populates it.
+
+After you have done so, you can later update the entries of the matrix by simply using 
+
+```lang=julia
+    blkDiagMat[blkDiagMat_CI] = blockMat[blockMatInd_vec]
+```
+
+It can be used to generate the shape of H_B or Σ from Chan, Poon, and Zhu (2024) which hast the linear indices of the coefficient matrix.
+
+"""
+function makeBlkDiag_ns(Tfn::Int,n::Int,p::Int,blockMat)
+
+    type = eltype(blockMat)
+
+    # initialize first the large matrix
+    blkDiagMat = zeros(type,Tfn,Tfn)
+
+    # The loop first populates the main block-diagonal (ij = 0)
+    # then it populates the first off-diagonal (ij = 1), 
+    # but stops before the last bottom right block, which is on the main diagonal and under which there is no entry
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMat[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = ones(type,n,n)
+        end
+    end
+
+    # Now we will use linear indices to map the values in blockMat to their positions in blkDiagMat
+    # - first initialize a matrix with Int as indices cannot be other than Int numbers
+    blkDiagMatInt = convert.(Int,blkDiagMat)
+    # - take the linear indices of blockMat
+    blockMatInd = LinearIndices(blockMat)
+
+    # - populate the diagonal of the Int block-diag matrix with the linear indices of blockMat
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMatInt[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = blockMatInd[ :, 1 + (ij-0)*n : n + (ij-0)*n]
+        end
+    end
+
+    blkDiagMat_CI = findall(blkDiagMat.==1.0);  # Carteisan indices with data
+    # - copy those linear indices to be used
+    blockMatInd_vec = blkDiagMatInt[blkDiagMat_CI];
+
+       # we can now update
+    blkDiagMat[blkDiagMat_CI] = blockMat[blockMatInd_vec]
+
+    return blkDiagMat, blkDiagMat_CI, blockMatInd_vec
+
+end
+
 
 @doc raw"""
 
@@ -841,7 +896,7 @@ end
 @doc raw"""
 
 """
-function CPZ_initMatrices(YY,blk,b0,Σt_inv,p)
+function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     (Tf,n) = size(YY); # full time span (with initial conditions)
     k = n*(p+1); kn = k*n
     Tfn = n*Tf;
@@ -856,7 +911,7 @@ function CPZ_initMatrices(YY,blk,b0,Σt_inv,p)
     Y0 = @views YY[1:p,:]
     if any(isnan.(Y0))
         Y0[isnan.(Y0)]=zeros(size(Y0[isnan.(Y0)],1)); # for the first pass remove NaNs for zeroes
-        print("NaNs found in Y0, replaced with zeros");
+        # print("NaNs found in Y0, replaced with zeros");
     end
     
     indC_nan_wide = findall(Sm_bit) #  Cartesian indices of missing values
@@ -877,7 +932,8 @@ function CPZ_initMatrices(YY,blk,b0,Σt_inv,p)
     Sosp = sparse(So);            # sparse So
     
     # Initialize matrices
-    H_Bsp, sBd_ind = BEAVARs.makeBlkDiag(Tfn,n,p,-blk);
+    H_Bsp, sBd_ind = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
+    H_B, H_B_CI, strB2HB_ind = BEAVARs.makeBlkDiag_ns(Tfn,n,p, -structB_draw);
     Σ_invsp, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
     Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);
     cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
@@ -885,7 +941,7 @@ function CPZ_initMatrices(YY,blk,b0,Σt_inv,p)
     cB = repeat(b0,Tf);
     
     inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_ind, sBd_ind, Σt_ind)
-    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str
+    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str, H_B, H_B_CI
 end
 
 @doc raw"""
@@ -937,6 +993,68 @@ function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_i
     μ_yBar = (CLBar.UP)\(CLBar.PtL\(MOiz + Kym*μ_y))
 
     YYt[Sm_bit] = μ_yBar +  CLBar.UP\randn(nm,)
+    return YYt
+end
+
+@doc raw"""
+    Draw with restrictions
+"""
+function CPZ_draw_wz2!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+
+    # updating H_B
+    H_Bsp.nzval[:] = -structB_draw[sBd_ind];
+    H_B[:,:] = H_Bsp[:,:];
+    # updating Σ_invFsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+
+    mul!(Gm,H_B,Smsp);
+    mul!(Go,H_B,Sosp);
+    GΣ = Gm'*Σ_invsp;
+    Kym = GΣ*Gm;
+    CL = cholesky(Hermitian(Kym))
+    long_pr = (cB-Go*longyo);
+    μ_y = CL.U\(CL.L\(GΣ*long_pr));
+
+    # KymBar = MOiM + Kym;
+    CLBar = cholesky(Hermitian(MOiM + Kym))
+    # C = CLBar.PtL; # Ct = CLBar.UP;
+    μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
+
+    YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
+    # YYt[Sm_bit] = μ_yBar +  ldiv!(CL.U,randn(nm,))
+    return YYt
+end
+
+
+@doc raw"""
+    Draw with restrictions
+"""
+function CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+
+    # updating H_B
+    # H_Bsp.nzval[:] = -structB_draw[sBd_ind];
+    H_B[H_B_CI] = -structB_draw[sBd_ind];
+    # updating Σ_invFsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+
+    mul!(Gm,H_B,Smsp);
+    mul!(Go,H_B,Sosp);
+    mul!(GΣ,Gm',Σ_invsp);
+    mul!(Kym,GΣ,Gm);
+    CL = cholesky(Hermitian(Kym))
+    long_pr = (cB-Go*longyo);
+    μ_y = CL.U\(CL.L\(GΣ*long_pr));
+
+    KymBar = MOiM + Kym;
+    CLBar = cholesky(Hermitian(KymBar))
+    μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
+
+    # YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
+    YYt[Sm_bit] = μ_yBar +  ldiv!(CLBar.U,randn(nm,))
     return YYt
 end
 
@@ -1021,24 +1139,23 @@ end
 @doc raw"""
     Relation to Minn4 tries to better do the inverses
 """
-function CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview)
-
+function CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview)
     Y, X = mlagL!(YY,Y,X,p,n)
     (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors!(Y,X,n,mu_prior,deltaP,sigmaP,intercept);
 
-    (idx_kappa1,idx_kappa2, V_MinnDiag, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-    V_Minn_invdiag = 1.0./V_MinnDiag;
+    (idx_kappa1,idx_kappa2, V_Minn_vec, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_vec_inv = 1.0./V_Minn_vec;
     Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
    
     
     Xsur_den[Xsur_CI] = X[X_CI]; 
     mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
-    V_Minn_inv_elview[:] = V_Minn_invdiag;  # update the diagonal of V_Minn^-1
+    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn^-1
     mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
     K_β = V_Minn_inv + XtΣ_inv_X;
     cholK_β = cholesky(Hermitian(K_β));    
     
-    prior_mean = V_Minn_invdiag.*beta_Minn;                   # V^-1_Minn * beta_Minn 
+    prior_mean = V_Minn_vec_inv.*beta_Minn;                   # V^-1_Minn * beta_Minn 
     mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
 
 
@@ -1056,7 +1173,7 @@ function CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_inv
     fit = zeros(size(Y))
     ee = Y-mul!(fit,X,B_draw');
 
-    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
+    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,ee'*ee))\I;
 
     return beta,b0,B_draw,Σt_inv,structB_draw
 end
@@ -1293,7 +1410,192 @@ function CPZ_loop4!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YY
 
 
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+            store_YY[:,:,ii-nburn] = YY;
+        end
+    end
+
+    return store_YY,store_beta
+end
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop5!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
+    @unpack n,p,nburn,nsave = varSetup
+    
+    YY = deepcopy(YYwNA);
+
+    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
+    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
+    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
+
+    ndraws = nsave+nburn;
+    store_YY = zeros(Tf,n,nsave);
+    store_beta=zeros(n^2*p+n,nsave);
+
+    Tf,n = size(YY);
+    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+
+    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+
+    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+
+    # Initialize matrices for updating the parameter draws from CPZ_Minn  
+    # ------------------------------------
+
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
+    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
+    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
+
+
+    
+    Y, X, T             = mlagL(YY,p);
+    Yt                  = vec(Y)
+
+    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
+    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
+    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
+
+
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+            store_YY[:,:,ii-nburn] = YY;
+        end
+    end
+
+    return store_YY,store_beta
+end
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop6!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
+    @unpack n,p,nburn,nsave = varSetup
+    
+    YY = deepcopy(YYwNA);
+
+    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
+    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
+    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
+
+    ndraws = nsave+nburn;
+    store_YY = zeros(Tf,n,nsave);
+    store_beta=zeros(n^2*p+n,nsave);
+
+    Tf,n = size(YY);
+    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+
+    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+
+    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+    H_B = Matrix(H_Bsp);
+    Gm = H_B*Smsp; Go = H_B*Sosp;
+    # Initialize matrices for updating the parameter draws from CPZ_Minn  
+    # ------------------------------------
+
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
+    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
+    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
+
+
+    
+    Y, X, T             = mlagL(YY,p);
+    Yt                  = vec(Y)
+
+    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
+    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
+    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
+
+
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz2!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B);
+        
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn] = beta;
+            store_YY[:,:,ii-nburn] = YY;
+        end
+    end
+
+    return store_YY,store_beta
+end
+
+
+@doc raw"""
+    Estimate parameters with a Minnesota prior
+"""
+function CPZ_loop7!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
+    @unpack n,p,nburn,nsave = varSetup
+    
+    YY = deepcopy(YYwNA);
+    
+    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
+    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
+    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
+
+
+    ndraws = nsave+nburn;
+    store_YY = zeros(Tf,n,nsave);
+    store_beta=zeros(n^2*p+n,nsave);
+
+    Tf,n = size(YY);
+    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str, H_B, H_B_CI = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+
+    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+
+    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+
+    H_B = Matrix(H_Bsp);
+    Gm = H_B*Smsp; Go = H_B*Sosp; GΣ = Gm'*Σ_invsp; Kym = GΣ*Gm; # we can initialize all these and then mutate with mul!()
+    # Initialize matrices for updating the parameter draws from CPZ_Minn  
+    # ------------------------------------
+
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
+    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
+    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
+
+
+    
+    Y, X, T             = mlagL(YY,p);
+    Yt                  = vec(Y)
+
+    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
+    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
+    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
+
+
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+        
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
         
         if ii>nburn
