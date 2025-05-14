@@ -58,8 +58,8 @@ fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_pr
 YYwNA = values(fdataHF_tab);
 
 
-nsave = 50;
-nburn = 50;
+nsave = 5000;
+nburn = 5000;
 YY = deepcopy(YYwNA)
 Tf,n = size(YY);
 model_stre = "CPZ2024";
@@ -77,11 +77,11 @@ M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF
 #---------------------------------------
 intercept = 1;
 store_YY1, store_beta = BEAVARs.CPZ_loop5!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
-# @btime store_YY1, store_beta = BEAVARs.CPZ_loop5!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
+@btime store_YY1, store_beta = BEAVARs.CPZ_loop5!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
 store_YY2, store_beta = BEAVARs.CPZ_loop6!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
 # @btime store_YY2, store_beta = BEAVARs.CPZ_loop6!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
 store_YY3, store_beta2 = BEAVARs.CPZ_loop7!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
-@btime store_YY3, store_beta = BEAVARs.CPZ_loop7!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
+@time store_YY3, store_beta = BEAVARs.CPZ_loop7!(YYwNA,setup_str,hyper_str,k,Tf,intercept,MOiM, MOiz);
 
 yy1 = median(store_YY1,dims=3)
 yy2 = median(store_YY2,dims=3)
