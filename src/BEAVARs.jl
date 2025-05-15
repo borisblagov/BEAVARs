@@ -7,7 +7,7 @@ using   Revise,
         Parameters
 
 # from init_functions.jl
-export mlag, mlagL, ols, percentile_mat
+export mlag, mlagL, mlagL!, ols, percentile_mat
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010, hypBanbura2010
@@ -70,9 +70,9 @@ struct CPZ2024_Inputs <: functionInputs
     longyo
     nm
     Xb
-    cB_b0_ind
+    cB_b0_LI
     sBd_ind
-    Σt_ind
+    Σt_LI
 end
 
 # Constructor
@@ -135,6 +135,28 @@ julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=50
 """
 function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
     T,n = size(YY);
+    if model_str == "Chan2020_LBA_csv"
+        # hypSetup = hypChan2020()
+        const_loc = 1;
+        model_type = Chan2020_LBA_csv_type()
+    elseif model_str == "Chan2020_LBA_Minn"
+        # hypSetup = hypChan2020()
+        const_loc = 1;
+        model_type = Chan2020_LBA_Minn_type()
+    elseif model_str == "Banbura2010"
+        const_loc = 0;
+        model_type = Banbura2010_type()
+    elseif model_str == "CPZ2024"
+        const_loc = 1;
+        model_type = CPZ2024_type()
+    else
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+    end
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
+end
+
+function makeSetup(varList::Vector{Symbol},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
+    n = size(varList,1);
     if model_str == "Chan2020_LBA_csv"
         # hypSetup = hypChan2020()
         const_loc = 1;
@@ -783,7 +805,7 @@ end
 @doc raw"""
 
 """
-function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-6)
+function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-8)
     
     z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
     T_z, n_z = size(z_tab);    # number of z vars
@@ -833,8 +855,8 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
         z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
     end
-    M_zsp = sparse(M_z);
-    O_zsp = sparse(I,T_z,T_z).*scVal;
+    M_zsp = M_z;
+    O_zsp = Matrix(I,T_z,T_z).*scVal;
     MOiM = M_zsp'*(O_zsp\M_zsp);
     MOiz = M_zsp'*(O_zsp\z_vec);
     return M_zsp, z_vec, T_z, MOiM, MOiz
@@ -854,7 +876,7 @@ end
     structure, by omitting B0 and starting from B1 (same as above) if you use
     Bmat[:,1+(p-io+kk)*n:(p-io+kk)*n+n]
 """
-function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_ind::Vector{Int64},p::Int,n::Int)
+function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_LI::Vector{Int64},p::Int,n::Int)
     for io = 0:p-1
         ytmp = zeros(n,);
         for kk = 0:io
@@ -864,7 +886,7 @@ function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_ind::Vector{Int64},
         ytmp = ytmp + b0;
         cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
     end
-    cB[n*p-n+1+n : end]=b0[cB_b0_ind]
+    cB[n*p-n+1+n : end]=b0[cB_b0_LI]
     return cB
 end
 
@@ -873,7 +895,7 @@ end
 @doc raw"""
 
 """
-function CPZ_prep_TA(dataLF_tab,dataHF_tab,varOrder)
+function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder)
     varNamesLF = colnames(dataLF_tab)
     z_tab = dataLF_tab;
     # add the z_tab as NaN values in the high-frequency tab
@@ -932,30 +954,32 @@ function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     Sosp = sparse(So);            # sparse So
     
     # Initialize matrices
-    H_Bsp, sBd_ind = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
+    H_Bsp, strctBdraw_LI = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
     H_B, H_B_CI, strB2HB_ind = BEAVARs.makeBlkDiag_ns(Tfn,n,p, -structB_draw);
-    Σ_invsp, Σt_ind = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
     Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);
-    cB_b0_ind = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_ind]
+    cB_b0_LI = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_LI]
     Xb = sparse(Matrix(1.0I, Tfn, Tfn))
     cB = repeat(b0,Tf);
     
-    inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_ind, sBd_ind, Σt_ind)
-    return YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str, H_B, H_B_CI
+    Gm = H_B*Smsp; Go = H_B*Sosp; GΣ = Gm'*Σ_invsp; Kym = GΣ*Gm; # we can initialize all these and then mutate with mul!()
+    
+    # inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_LI, strctBdraw_LI, Σt_LI)
+    return YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym;
 end
 
 @doc raw"""
 
 """
-function CPZ_draw!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm)
+function CPZ_draw!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm)
     # updating cB
-    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
 
     # updating H_B
     H_Bsp.nzval[:] = -structB_draw[sBd_ind];
 
     # updating Σ_invsp
-    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+    Σ_invsp.nzval[:] = Σt_inv[Σt_LI];
 
     Gm = H_Bsp*Smsp
     Go = H_Bsp*Sosp
@@ -971,15 +995,15 @@ end
 @doc raw"""
     Draw with restrictions
 """
-function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz)
+function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz)
     # updating cB
-    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
 
     # updating H_B
     H_Bsp.nzval[:] = -structB_draw[sBd_ind];
 
     # updating Σ_invFsp
-    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+    Σ_invsp.nzval[:] = Σt_inv[Σt_LI];
 
     Gm = H_Bsp*Smsp
     Go = H_Bsp*Sosp
@@ -996,50 +1020,18 @@ function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_i
     return YYt
 end
 
-@doc raw"""
-    Draw with restrictions
-"""
-function CPZ_draw_wz2!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B)
-    # updating cB
-    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
-
-    # updating H_B
-    H_Bsp.nzval[:] = -structB_draw[sBd_ind];
-    H_B[:,:] = H_Bsp[:,:];
-    # updating Σ_invFsp
-    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
-
-    mul!(Gm,H_B,Smsp);
-    mul!(Go,H_B,Sosp);
-    GΣ = Gm'*Σ_invsp;
-    Kym = GΣ*Gm;
-    CL = cholesky(Hermitian(Kym))
-    long_pr = (cB-Go*longyo);
-    μ_y = CL.U\(CL.L\(GΣ*long_pr));
-
-    # KymBar = MOiM + Kym;
-    CLBar = cholesky(Hermitian(MOiM + Kym))
-    # C = CLBar.PtL; # Ct = CLBar.UP;
-    μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
-
-    YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
-    # YYt[Sm_bit] = μ_yBar +  ldiv!(CL.U,randn(nm,))
-    return YYt
-end
-
 
 @doc raw"""
     Draw with restrictions
 """
-function CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI)
+function CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI)
     # updating cB
-    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_ind,p,n)
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
 
     # updating H_B
-    # H_Bsp.nzval[:] = -structB_draw[sBd_ind];
     H_B[H_B_CI] = -structB_draw[sBd_ind];
     # updating Σ_invFsp
-    Σ_invsp.nzval[:] = Σt_inv[Σt_ind];
+    Σ_invsp.nzval[:] = Σt_inv[Σt_LI];
 
     mul!(Gm,H_B,Smsp);
     mul!(Go,H_B,Sosp);
@@ -1059,81 +1051,6 @@ function CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_
 end
 
 
-
-@doc raw"""
-    Update the parameters with a Minnesota prior, updates the priors quicker in contrast to Minn
-"""
-function CPZ_Minn2!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept)
-
-    Y, X = mlagL!(YY,Y,X,p,n)
-    (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors!(Y,X,n,mu_prior,deltaP,sigmaP,intercept);
-
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-    V_Minn_inv = 1.0./V_Minn;
-    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
-    Xsur.nzval[:] .= X[Xsur_ind];    
-    XtΣ_inv = Xsur'*Σp_invsp;
-
-    kronI_V_invsp.nzval[:] = V_Minn_inv;
-    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
-    cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn.*V_Minn_inv + XtΣ_inv * vec(Y)))
-
-    beta = beta_hat + cholK_β.UP\randn(k*n);
-
-    B_draw[:,:] = reshape(beta,k,n)'
-    b0[:] = B_draw[:,1]
-    structB_draw[:,n+1:end] = B_draw[:,2:end]
-
-
-    # errors 
-    fit = zeros(size(Y))
-    ee = Y-mul!(fit,X,B_draw');
-
-    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
-
-    return beta,b0,B_draw,Σt_inv,structB_draw
-end
-
-
-@doc raw"""
-    Update the parameters with a Minnesota prior, does not use sparse matrices in contrast to Minn2
-"""
-function CPZ_Minn3!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp)
-
-    Y, X = mlagL!(YY,Y,X,p,n)
-    (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors!(Y,X,n,mu_prior,deltaP,sigmaP,intercept);
-
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-    V_Minn_inv = 1.0./V_Minn;
-    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
-    kronI_V_invsp.nzval[:] = V_Minn_inv;
-   
-    
-    Xsur_den[Xsur_CI] = X[X_CI]; 
-    mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
-    kronI_V_invsp.nzval[:] = V_Minn_inv;
-    mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
-    K_β = kronI_V_invsp + XtΣ_inv_X;
-    cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.U\(cholK_β.L\(beta_Minn./V_Minn + XtΣ_inv_den *  vec(Y)));
-
-    helper_vec = randn(k*n,);
-    beta = beta_hat + ldiv!(cholK_β.U,helper_vec);
-
-    B_draw[:,:] = reshape(beta,k,n)'
-    b0[:] = B_draw[:,1]
-    structB_draw[:,n+1:end] = B_draw[:,2:end]
-
-
-    # errors 
-    fit = zeros(size(Y))
-    ee = Y-mul!(fit,X,B_draw');
-
-    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
-
-    return beta,b0,B_draw,Σt_inv,structB_draw
-end
 
 
 @doc raw"""
@@ -1178,11 +1095,54 @@ function CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,�
     return beta,b0,B_draw,Σt_inv,structB_draw
 end
 
+
+@doc raw"""
+    Relation to Minn4 tries to better do the inverses
+"""
+function CPZ_Minn5!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,upd_these_vec,K_β,beta)
+    Y, X = mlagL!(YY,Y,X,p,n)
+    (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,upd_these_vec);
+
+    (idx_kappa1,idx_kappa2, V_Minn_vec, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_vec_inv = 1.0./V_Minn_vec;
+    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
+   
+    
+    Xsur_den[Xsur_CI] = X[X_CI]; 
+    mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
+    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn^-1
+    mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
+    K_β[:,:] .= V_Minn_inv .+ XtΣ_inv_X;
+    cholK_β = cholesky(Hermitian(K_β));    
+    
+    prior_mean = V_Minn_vec_inv.*beta_Minn;                   # V^-1_Minn * beta_Minn 
+    mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
+
+
+    beta_hat = ldiv!(cholK_β.U,ldiv!(cholK_β.L,prior_mean));
+
+    helper_vec = randn(k*n,);
+    beta = beta_hat + ldiv!(cholK_β.U,helper_vec);
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    fit = zeros(size(Y))
+    ee = Y-mul!(fit,X,B_draw');
+
+    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,ee'*ee))\I;
+
+    return beta,b0,B_draw,Σt_inv,structB_draw
+end
+
 @doc raw"""
     Update the parameters with a Minnesota prior
     This is an implementation with sparse matrices and it is very slow
 """
-function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind)
+function CPZ_Minn_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind)
 
     Y, X, T = mlagL(YY,p)
     Yt = vec(Y)
@@ -1216,386 +1176,98 @@ function CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind
 end
 
 
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_Minn_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
-
-    Y, X, T = mlagL(YY,p)
-    Yt = vec(Y)
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
-
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-
-    # Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; 
-    T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
-    # Σhat_sp = Σt_inv;
-    kronIT_Σhat_sp = kron(T_speye,Σt_inv);
-    Xsur = SUR_form(X,n)
-
-    # Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
-    XtΣ_inv = Xsur'*kronIT_Σhat_sp;
-
-    kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
-    kronI_V_invsp.nzval[:] = 1.0./V_Minn;
-    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
-    cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XtΣ_inv * Yt))
-
-    beta = beta_hat + cholK_β.UP\randn(k*n);
-
-    B_draw[:,:] = reshape(beta,k,n)'
-    b0[:] = B_draw[:,1]
-    structB_draw[:,n+1:end] = B_draw[:,2:end]
-
-
-    # errors 
-    fit = zeros(size(Y))
-    ee = Y-mul!(fit,X,B_draw');
-
-    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
-
-    return beta,b0,B_draw,Σt_inv,structB_draw
-end
-
-
-
 
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_Minn_init(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw)
-
-    Y, X, T = mlagL(YY,p)
-    Yt = vec(Y)
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
-
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
-
-    # Σhat_sp  = sparse(1:n,1:n,1.0); Σhat_sp.nzval[:] = 1.0./sigmaP; 
-    T_speye  = sparse(Matrix(1.0I, T, T)); # for updating XiSig. Ins't this just Σ_invsp without the t=0,...t=-p??? 
-    # Σhat_sp = Σt_inv;
-    kronIT_Σhat_sp = kron(T_speye,Σt_inv);
-    Xsur = SUR_form(X,n)
-
-    # Σ_invsp_view = @view Σ_invsp[(Tf-T)*n+1:end, (Tf-T)*n+1:end];
-    XtΣ_inv = Xsur'*kronIT_Σhat_sp;
-
-    kronI_V_invsp = sparse(1:n*k,1:n*k,1.0);    # for updating prior in K_β
-    kronI_V_invsp.nzval[:] = 1.0./V_Minn;
-    K_β = kronI_V_invsp + XtΣ_inv*Xsur;
-    cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XtΣ_inv * Yt))
-
-    beta = beta_hat + cholK_β.UP\randn(k*n);
-
-    B_draw[:,:] = reshape(beta,k,n)'
-    b0[:] = B_draw[:,1]
-    structB_draw[:,n+1:end] = B_draw[:,2:end]
-
-
-    # errors 
-    fit = zeros(size(Y))
-    ee = Y-mul!(fit,X,B_draw');
-
-    Σt_inv[:,:] = rand(InverseWishart(T+nu0,ee'*ee))\I;
-
-    return beta,b0,B_draw,Σt_inv,structB_draw
-end
-
-
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind)
-    @unpack n,p,nburn,nsave = varSetup
-    
+function CPZ_loop!(dataLF_tab,dataHF_tab,varList,varSetup,hypSetup)
+    @unpack n, p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
 
+    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList)
 
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind);
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
-end
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop2!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept)
-    @unpack n,p,nburn,nsave = varSetup
-    
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn2!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Xsur_ind,kronI_V_invsp,Xsur,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept);;
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
-end
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop3!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X)
-    @unpack n,p,nburn,nsave = varSetup
-    
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn3!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,kronI_V_invsp);
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
-end
-
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop4!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Tf,kronI_V_invsp,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview)
-    @unpack n,p,nburn,nsave = varSetup
-    
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
-end
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop5!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
-    @unpack n,p,nburn,nsave = varSetup
-    
+    YYwNA = values(fdataHF_tab);
     YY = deepcopy(YYwNA);
-
-    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
-    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
-    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
-
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-
     Tf,n = size(YY);
-    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    
+    B_draw, structB_draw, Σt_inv, b0 = BEAVARs.initParamMatrices(n,p,const_loc) 
 
-    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+    YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    
+    M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
 
     # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
-    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-
+    YYt = BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+    
+    # we will be updating the priors for variables with many missing observations (>25%)
+    updP_vec = sum(Sm_bit,dims=2).>size(Sm_bit,2)*0.25;
+    
     # Initialize matrices for updating the parameter draws from CPZ_Minn  
     # ------------------------------------
-
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
-    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
-    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
-
-
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept = CPZ_initMinn(YY,p)
     
-    Y, X, T             = mlagL(YY,p);
-    Yt                  = vec(Y)
 
-    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
-    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
-    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
-
+    # prepare matrices for storage
+    store_YY    = zeros(Tf,n,nsave);
+    store_beta  =zeros(n^2*p+n,nsave);
+    store_Σt    =zeros(n^2,nsave);
 
     for ii = 1:ndraws
         # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-
+        BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+        
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn5!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
+        # beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
         
         if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
+            store_beta[:,ii-nburn]  = beta;
+            store_YY[:,:,ii-nburn]  = YY;
+            store_Σt[:,ii-nburn]    = 1.0./vec(Σt_inv);
         end
     end
 
-    return store_YY,store_beta
+    return store_YY,store_beta, store_Σt
 end
+
 
 
 @doc raw"""
     Estimate parameters with a Minnesota prior
 """
-function CPZ_loop6!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
-    @unpack n,p,nburn,nsave = varSetup
+function CPZ_loop2!(YYwNA,varSetup,hypSetup,MOiM, MOiz)
+    @unpack n, p, nburn,nsave, const_loc = varSetup
+    ndraws = nsave+nburn;
+
     
     YY = deepcopy(YYwNA);
-
-    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
-    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
-    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
-
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-
     Tf,n = size(YY);
-    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    k = n*p+const_loc; 
+    
+    B_draw, structB_draw, Σt_inv, b0 = BEAVARs.initParamMatrices(n,p,const_loc) 
 
-    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
-
+    YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    
     # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
-    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-    H_B = Matrix(H_Bsp);
-    Gm = H_B*Smsp; Go = H_B*Sosp;
+    YYt = BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+    
     # Initialize matrices for updating the parameter draws from CPZ_Minn  
     # ------------------------------------
-
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
-    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
-    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
-
-
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept = CPZ_initMinn(YY,p)
     
-    Y, X, T             = mlagL(YY,p);
-    Yt                  = vec(Y)
+    # MOiM = Matrix(MOiM)
 
-    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
-    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
-    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
-
-
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz2!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B);
-        
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
-end
-
-
-@doc raw"""
-    Estimate parameters with a Minnesota prior
-"""
-function CPZ_loop7!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
-    @unpack n,p,nburn,nsave = varSetup
-    
-    YY = deepcopy(YYwNA);
-    
-    B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
-    structB_draw = [-1.0*I(n) B_draw[:,2:end]]
-    Σt  = .001*Matrix(I,n,n).+0.00000000001; Σt_inv = inv(Σt)
-
-
-    ndraws = nsave+nburn;
+    # prepare matrices for storage
     store_YY = zeros(Tf,n,nsave);
     store_beta=zeros(n^2*p+n,nsave);
 
-    Tf,n = size(YY);
-    YYt, Y0, H_Bsp, sBd_ind, Σ_invsp, Σt_ind, Σp_invsp, Σpt_ind, cB_b0_ind, Xb, cB, Smsp, Sosp, Sm_bit, longyo, nm, inputs_str, H_B, H_B_CI = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
-
-    # M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
-
-    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
-    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-
-    H_B = Matrix(H_Bsp);
-    Gm = H_B*Smsp; Go = H_B*Sosp; GΣ = Gm'*Σ_invsp; Kym = GΣ*Gm; # we can initialize all these and then mutate with mul!()
-    # Initialize matrices for updating the parameter draws from CPZ_Minn  
-    # ------------------------------------
-
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);                                     # do OLS to initialize priors
-    V_Minn_inv          = 1.0*Matrix(I,n*k,n*k);                                        # prior matrix
-    V_Minn_inv_elview   = @view(V_Minn_inv[diagind(V_Minn_inv)]);                       # will be used to update the diagonal
-
-
-    
-    Y, X, T             = mlagL(YY,p);
-    Yt                  = vec(Y)
-
-    XtΣ_inv_den         = zeros(k*n,T*n);                   # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
-    XtΣ_inv_X           = zeros(n*k,n*k);                   # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
-    Xsur_den, Xsur_CI, X_CI = BEAVARs.SUR_form_dense(X,n);  # prepares the SUR form and the indices of the parameters for updating
-
-
     for ii = 1:ndraws
         # draw of the missing values
-        BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+        BEAVARs.CPZ_draw_wz3!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
         
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
         
         if ii>nburn
@@ -1607,34 +1279,25 @@ function CPZ_loop7!(YYwNA,varSetup,hypSetup,k,Tf,intercept,MOiM, MOiz)
     return store_YY,store_beta
 end
 
-@doc raw"""
-    Estimate parameters with a Minnesota prior
 """
-function CPZ_loop_old!(YY,varSetup,hypSetup,nu0,k,b0,B_draw,Σt_inv,structB_draw,YYt,longyo,Y0,cB,sBd_ind,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,nburn,nsave,Tf)
-    @unpack n,p,nburn,nsave = varSetup
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, intercept, K_β, beta,  = CPZ_initMinn(YY,p)
 
-    ndraws = nsave+nburn;
-    store_YY = zeros(Tf,n,nsave);
-    store_beta=zeros(n^2*p+n,nsave);
-    for ii = 1:ndraws
-        # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
-        # @btime BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_ind,Xb,cB_b0_ind,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz);
+    Initializes matrices for using the Minnesota prior in the CPZ2024 framework
+"""
+function CPZ_initMinn(YY,p)
+    Y, X, T, n, intercept       = mlagL(YY,p);
+    k                           = n*p+intercept
+    (deltaP, sigmaP, mu_prior)  = trainPriors(YY,p);                         # do OLS to initialize priors
+    V_Minn_inv                  = 1.0*Matrix(I,n*k,n*k);                    # prior matrix
+    V_Minn_inv_elview           = @view(V_Minn_inv[diagind(V_Minn_inv)]);   # will be used to update the diagonal    
+    XtΣ_inv_den                 = zeros(k*n,T*n);                           # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
+    XtΣ_inv_X                   = zeros(n*k,n*k);                           # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
+    Xsur_den, Xsur_CI, X_CI     = BEAVARs.SUR_form_dense(X,n);              # prepares the SUR form and the indices of the parameters for updating
+    K_β                         = zeros(n*k,n*k);                           # Variance covariance matrix of the parameters
+    beta                        = zeros(n*k,);                              # the parameters in a vector
 
-
-        # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn_old!(YY,p,hypSetup,nu0,n,k,b0,B_draw,Σt_inv,structB_draw);
-
-        
-        if ii>nburn
-            store_beta[:,ii-nburn] = beta;
-            store_YY[:,:,ii-nburn] = YY;
-        end
-    end
-
-    return store_YY,store_beta
+    return Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept
 end
-
 
 
 include("init_functions.jl")

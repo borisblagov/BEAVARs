@@ -58,7 +58,6 @@ function ols(Y,X)
     n = size(Y,2)
     β = vec(X\Y);
     ε = Y-X*reshape(β,size(X,2),n);
-    # ε = Y-X*β;
     σ_sq = ε'*ε/(size(Y,1)-size(X,2));
     return β, ε, σ_sq
 end
@@ -122,8 +121,7 @@ deltaP has the constant on the bottom and the lags (1) to (p) in rows [1:end-1,:
 
 """
 function updatePriors!(Y,X,n::Int,mu_prior,deltaP,sigmaP,intercept)
-    # Do univariate AR(p) linear regressions with constant,
-    # if intercept = 1, constant is on the left of X (bottom of beta in X*beta)
+    # Do univariate AR(p) linear regressions with constant
     for ii = 1:n
         b,res,sig = ols(Y[:,ii],[ones(size(X,1),) X[:,intercept+ii:n:end-1+intercept]])
         deltaP[:,ii] = b
@@ -131,6 +129,23 @@ function updatePriors!(Y,X,n::Int,mu_prior,deltaP,sigmaP,intercept)
     end
     return deltaP, sigmaP, mu_prior
 end
+
+function updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,BitVec)
+    # Do univariate AR(p) linear regressions with constant,
+    # if intercept = 1, constant is on the left of X (bottom of beta in X*beta)
+    
+    LI = getindex.( findall(BitVec), [1 ]);
+    for ii in LI
+        b,res,sig = ols(Y[:,ii],[ones(size(X,1),) X[:,intercept+ii:n:end-1+intercept]])
+        deltaP[:,ii] = b
+        sigmaP[ii,:] = sig
+    end
+    return deltaP, sigmaP, mu_prior
+end
+
+
+
+
 
 
 """
@@ -146,4 +161,35 @@ function percentile_mat(A, p; dims)
     return prctileSlim_mat
 end
 
+
+"""
+    B_draw, structB_draw, Σt_inv, b0 = initParamMatrices(n,p,intercept) 
+    
+    Initializes paramater matrices for a VAR of the form
+        B_0 y_t = b0 + B_1 y_{t-1} + ... + B_p y_{t-1} + varepsilon_t,     varepsilon_t sim N(0,Σt)
+        
+        B_0 is an identity matrix
+        B_1 is an identity matrix
+        b0, B_2, ..., B_p are zeroes
+
+    Returns:    
+        B_draw = [b0, B1, ..., Bp]; if intercept == 0, b0 is at the and and if set to -1, there is no intercept
+        structB_draw = [B_0, B1, ..., Bp]
+        Σt_inv = Σt^{-1}
+
+"""
+function initParamMatrices(n::Int,p::Int,intercept::Int) 
+    if intercept == 1
+        B_draw = [zeros(n,)  1.0*I(n) zeros(n,n*(p-1))]; b0 = B_draw[:,1];
+        structB_draw = [-1.0*I(n) B_draw[:,2:end]]
+    elseif intercept == 0
+        B_draw = [1.0*I(n) zeros(n,n*(p-1)) zeros(n,) ]; b0 = B_draw[:,end];
+        structB_draw = [-1.0*I(n) B_draw[:,1:end-1]]
+    elseif intercept == -1
+        B_draw = [1.0*I(n) zeros(n,n*(p-1))]; b0 = ones(n,).*NaN;
+        structB_draw = [-1.0*I(n) B_draw]
+    end
+    Σt  = .001*Matrix(I,n,n); Σt_inv = inv(Σt)
+    return B_draw, structB_draw, Σt_inv, b0
+end
 
