@@ -1,8 +1,13 @@
 module BEAVARs
-using Revise, LinearAlgebra, Distributions, SparseArrays, Parameters
+using   Revise, 
+        LinearAlgebra, 
+        Distributions, 
+        SparseArrays,
+        TimeSeries, 
+        Parameters
 
 # from init_functions.jl
-export mlag, mlag_r, ols, percentile_mat, mlag_linked!, mlag!
+export mlag, mlagL, mlagL!, ols, percentile_mat
 
 # from Banbura2010
 export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010, hypBanbura2010
@@ -14,11 +19,11 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
 export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 
-export makeSetup, fortschr!
+export makeSetup, fortschr!, beavar, dispatchModel, makeOutput
 
-include("init_functions.jl")
-include("Banbura2010.jl")
-include("irfs.jl")
+# Structures, to be uncommented later
+export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType
+
 
 function fortschr!(Yfor,p,A)
     for i_for = 1:8
@@ -29,8 +34,25 @@ function fortschr!(Yfor,p,A)
 end
 
 
-abstract type modelSetup end
+# Structures for multiple dispatch across models
 
+# types for models
+abstract type VARModelType end
+struct Chan2020_LBA_Minn_type <: VARModelType end
+struct Chan2020_LBA_csv_type <: VARModelType end
+struct Banbura2010_type <: VARModelType end
+struct CPZ2024_type <: VARModelType end
+
+
+# types for parameters (VAR setup parameters, hyperparameters, and output storage)
+abstract type modelSetup end
+abstract type modelHypSetup end
+abstract type functionInputs end
+
+# empty structure for initialising the model
+struct hypDefault_strct <: modelHypSetup end
+
+# structure initializing the VAR
 @with_kw struct VARSetup <: modelSetup
     n::Int          # number of variables (will be overwritten)
     p::Int          # number of lags
@@ -39,6 +61,18 @@ abstract type modelSetup end
     n_irf::Int      # number of impulse responses
     n_fcst::Int     # number of forecast periods
     const_loc::Int  # location of the constant
+end
+
+struct CPZ2024_Inputs <: functionInputs
+    Smsp
+    Sosp
+    Sm_bit
+    longyo
+    nm
+    Xb
+    cB_b0_LI
+    sBd_ind
+    Σt_LI
 end
 
 # Constructor
@@ -63,7 +97,7 @@ Keyword arguments (e.g. p = 4). They don't have to be specified.
 Outputs
 
     VARSetup: the setup structure for the BEAVARs
-    HyperSetup: the setup structure for hyperparameters with default values. If you want to modify these, disregard the output and do it outside
+    hypSetup: the setup structure for hyperparameters with default values. If you want to modify these, disregard the output and do it outside
     
 Examples
 
@@ -98,29 +132,103 @@ julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=50
   epsi: Float64 0.001
 )
 ```
-
 """
-function makeSetup(YY::Array{Float64},model=model_str;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8)
+function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
     T,n = size(YY);
-    if model == "Chan2020_LBA_csv"
-        HyperSetup = hypChan2020()
+    if model_str == "Chan2020_LBA_csv"
+        # hypSetup = hypChan2020()
         const_loc = 1;
-    elseif model == "Chan2020_LBA_Minn"
-        HyperSetup = hypChan2020()
+        model_type = Chan2020_LBA_csv_type()
+    elseif model_str == "Chan2020_LBA_Minn"
+        # hypSetup = hypChan2020()
         const_loc = 1;
-    elseif model == "Banbura2010"
-        HyperSetup = hypBanbura2010()
+        model_type = Chan2020_LBA_Minn_type()
+    elseif model_str == "Banbura2010"
         const_loc = 0;
+        model_type = Banbura2010_type()
+    elseif model_str == "CPZ2024"
+        const_loc = 1;
+        model_type = CPZ2024_type()
     else
-        error("Model not found, make sure the spelling is correct, upper and lowercase letters matter!")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
-    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), HyperSetup
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
+end
+
+function makeSetup(varList::Vector{Symbol},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
+    n = size(varList,1);
+    if model_str == "Chan2020_LBA_csv"
+        # hypSetup = hypChan2020()
+        const_loc = 1;
+        model_type = Chan2020_LBA_csv_type()
+    elseif model_str == "Chan2020_LBA_Minn"
+        # hypSetup = hypChan2020()
+        const_loc = 1;
+        model_type = Chan2020_LBA_Minn_type()
+    elseif model_str == "Banbura2010"
+        const_loc = 0;
+        model_type = Banbura2010_type()
+    elseif model_str == "CPZ2024"
+        const_loc = 1;
+        model_type = CPZ2024_type()
+    else
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+    end
+    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
+end
+
+
+function makeHypSetup(::Chan2020_LBA_csv_type)
+    return hypChan2020()
+end
+function makeHypSetup(::Chan2020_LBA_Minn_type)
+    return hypChan2020()
+end
+function makeHypSetup(::Banbura2010_type)
+    return hypBanbura2010()
+end
+
+
+function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+    setup_str, model_type = makeSetup(YY,model_str,p,n_irf,n_fcst,nburn,nsave);
+    
+    # checking if user supplied the hyperparameter structure
+    if isa(hyp,hypDefault_strct)
+        # if not supplied, make a default one
+        hyp_strct = makeHypSetup(model_type)
+        # println("using the default hyperparameters")
+    else        
+        # else use supplied
+        hyp_strct = hyp
+        # println("using the supplied parameters")
+    end
+    dispatchModel(YY,model_type,setup_str, hyp_strct);
+    
+    return setup_str, hyp_strct
+end
+
+function dispatchModel(YY,::Chan2020_LBA_Minn_type,setup_str, hyper_str)
+    # println("Hello Minn")
+    store_beta, store_sigma = Chan2020_LBA_Minn(YY,setup_str,hyper_str);
+    return store_beta, store_sigma
+end
+
+
+function dispatchModel(YY,::Chan2020_LBA_csv_type,setup_str, hyper_str)
+    println("Hello csv")
+    store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,setup_str,hyper_str);
+    return store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store
+end
+
+function dispatchModel(YY,::Banbura2010_type,setup_str, hyper_str)
+    println("Hello Banbura2010")
+    store_beta, store_sigma = Banbura2010(YY,setup_str,hyper_str);
 end
 
 #----------------------------------------
 # Chan 2020 LBA functions
 
-@with_kw struct hypChan2020
+@with_kw struct hypChan2020 <: modelHypSetup
     c1::Float64     = 0.04; # hyperparameter on own lags
     c2::Float64     = 0.01; # hyperparameter on other lags
     c3::Float64     = 100;  # hyperparameter on the constant
@@ -131,46 +239,36 @@ end
     ρ_0::Float64     = .9; 
     V_ρ::Float64     = 0.04;
     q::Float64       = 0.5;
+    nu0::Int         = 3;   # degrees of freedom to add for the inverse wishart distribution of the variance-covariance matrices
 end
 
-
-function SUR_form(X,n)
-    repX = kron(X,ones(n,1));
-    r,c = size(X);
-    idi = repeat(1:r*n,inner=c);
-    idj=repeat(1:c*n,r);
-    Xout = sparse(idi,idj,vec(repX'));
-
-    return Xout
-end
 
 @doc raw"""
-# Chan2020_LBA_Minn(YY,VARSetup,HyperSetup)
+# Chan2020_LBA_Minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
 """
-function Chan2020_LBA_Minn(YY,VARSetup,HyperSetup)
+function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     @unpack p,nburn,nsave = VARSetup
-    Y, X, T, n = mlag_r(YY,p)
+    Y, X, T, n = mlagL(YY,p)
 
     Yt = vec(Y')
 
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
 
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,HyperSetup);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
     k = n*p+1;
     Xsur = SUR_form(X,n)
     XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
     K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
     cholK_β = cholesky(Hermitian(K_β));
-    beta_hat = cholK_β.U\(cholK_β.L\(beta_Minn./V_Minn + XiSig * Yt))
-    # CSig = sparse(1:n,1:n,sqrt.(sigmaP));
+    beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
     
     ndraws = nsave+nburn;
     store_beta=zeros(n^2*p+n,nsave)
     for ii = 1:ndraws 
-        beta = beta_hat + cholK_β.U\randn(k*n);
+        beta = beta_hat + cholK_β.UP\randn(k*n);
         if ii>nburn
             store_beta[:,ii-nburn] = beta;
         end
@@ -183,7 +281,7 @@ end
 
 
 @doc raw"""
-    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_Minn(n,p,sigmaP,HyperSetup)
+    (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup)
 
 Impements a Minnesota prior with scaling for the off-diagonal elements as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
 Macroeconomic Forecasting in the Era of Big Data, 95-125, Springer, Cham. If you remove the hyperparameters ``c_1``, ``c_2``, ``c_3`` (or set them equal to 1),
@@ -206,8 +304,8 @@ The hyperparameters have default values of ``c_1 = 0.04``; ``c_2 = 0.01``; ``c_3
 are referred to as ``\kappa_1``, ``\kappa_2``, and ``\kappa_4`` (``\kappa_3`` is used there for prior on contemporaneous relationships)
 
 """
-function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},HyperSetup)    
-    @unpack c1,c2,c3 = HyperSetup
+function prior_Minn(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypSetup)    
+    @unpack c1,c2,c3 = hypSetup
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
@@ -262,8 +360,8 @@ C_{n*p+1 \times 1} =
 Note that C is now (n*p+1 x 1) and not n^2*p+n as [`prior_Minn(x)`](@ref)
 
 """
-function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},HyperSetup)    
-    @unpack c1,c3 = HyperSetup;
+function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},hypSetup)    
+    @unpack c1,c3 = hypSetup;
     C = zeros(n^2*p+n,);
     beta_Minn = zeros(n^2*p+n);
     np1 = n*p+1 # number of parameters per equation
@@ -291,7 +389,12 @@ function prior_NonConj(n::Integer,p::Integer,sigmaP_vec::Vector{Float64},HyperSe
 
 end
 
+@doc raw"""
+    draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
 
+Draws the log-volatilities h by mutating the array from the previous draw using an MH algorithm
+
+"""
 function draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
 
     accept = false;
@@ -410,103 +513,39 @@ function draw_h_csv_opt!(h::Vector{Float64},s2_h,ρ,σ_h2,n,H_ρ)
 end # end draw_h_csv!
 
 
-# old one
-# function Chan2020_LBA_csv_keywords(YY::Array{Float64};hyp=hypChan2020,p::Integer=4,nburn::Integer=2000,nsave::Integer=1000)
-#     @unpack c1, c2, c3, ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ, q = hyp
+function SUR_form(X,n)
+    repX = kron(X,ones(n,1));
+    T,k = size(X);
+    idi = repeat(1:T*n,inner=k);
+    idj=repeat(1:k*n,T);
+    Xout = sparse(idi,idj,vec(repX'));
 
-#     Y, Z, T, n = mlag_r(YY,4)
-#     (deltaP, sigmaP, mu_prior) = trainPriors(YY,4)
-#     np1 = n*p+1; # number of parameters per equation
-#     # VARsetup.n = 20;
-#     # print((n))
-    
-#     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hyp);
-    
-#     A_0 = reshape(beta_Minn,np1,n);
-#     V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
-    
-#     S_0 = Diagonal(sigmaP);
-#     Σ = S_0;
-#     v_0 = n+3;
-#     h = zeros(T,)
-#     H_ρ = sparse(Matrix(1.0I, T, T)) - sparse(ρ*diagm(-1=>repeat(1:1,T-1)));
-#     # dv = ones(T,); ev = -ρ.*ones(T-1,);
-#     # H_ρ = Bidiagonal(dv,ev,:L)
-    
-#     # This part follows page 19 of Chan, J. (2020)
-#     ndraws = nsave+nburn;
-#     A_store = zeros(np1,n,nsave);
-#     h_store = zeros(T,nsave);
-#     Σ_store = zeros(n,n,nsave);
-#     s2_h_store = zeros(T,nsave);
-#     ρ_store = zeros(nsave,);
-#     σ_h2_store = zeros(nsave,); 
-#     eh_store = zeros(T,nsave);
-    
-#     eh = similar(h);
+    return Xout
+end
 
-#     Ωinv = sparse(1:T,1:T,exp.(-h));
-#     dg_ind_Ωinv = diagind(Ωinv);
-#     for ii = 1:ndraws 
-#         Ωinv[dg_ind_Ωinv]=exp.(-h);
-#         ZtΩinv = Z'*Ωinv;
-        
-#         K_A = V_Ainv + ZtΩinv*Z;
-#         A_hat = K_A\(V_Ainv\A_0 + ZtΩinv*Y);
-#         S_hat = S_0 + A_0'*V_Ainv*A_0 + Y'*Ωinv*Y - A_hat'*K_A*A_hat;
-#         S_hat = (S_hat+S_hat')/2;
-    
-#         Σ = rand(InverseWishart(v_0+T,S_hat));
-#         CSig_t = cholesky(Σ).U; # if we get the upper we don't need constant transpose
-#         A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*CSig_t;
-    
-#         # Errors
-#         U = Y - Z*A
-#         s2_h = sum((U/CSig_t).^2,dims=2)
-    
-#         draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
-#         eh[1,] = h[1]*sqrt(1-ρ^2);
-#         eh[2:end,] = h[2:end,].-ρ.*h[1:end-1,]
-#         σ_h2 = 1.0./rand(Gamma(v_h0+T/2.0, 1/( S_h0 + sum(eh.^2)./2.0 ) ) )
-    
-#         K_rho = 1.0/V_ρ + sum(h[1:T-1,].^2)./σ_h2;
-#         ρ_hat = K_rho\(ρ_0/V_ρ + h[1:T-1,]'*h[2:T,]./σ_h2);
-#         ρ_c = ρ_hat + sqrt(K_rho)\randn();
-    
-#         g_ρ(x) = -0.5*log(σ_h2./(1-x.^2))-0.5*(1.0-x.^2)/σ_h2*h[1]^2;
-#         if abs(ρ_c)<.999
-#             alpMH = exp(g_ρ(ρ_c)-g_ρ(ρ));
-#             if alpMH>rand()
-#                 ρ = ρ_c;            
-#             end
-#         end    
-#         H_ρ[diagind(H_ρ,-1)]=fill(-ρ,T-1);
-#         # H_ρ.ev.=-ρ.*ones(T-1,)
+function SUR_form_dense(X,n)
+    repX = kron(X,ones(n,1));
+    T,k = size(X);
+    idi = repeat(1:T*n,inner=k);
+    idj=repeat(1:k*n,T);
+    Xout = Matrix(sparse(idi,idj,vec(repX')));
+    Xsur_CI = CartesianIndex.(idi,idj);
 
+    idi_X = repeat(1:T,inner=k*n);
+    idj_X=repeat(1:k,T*n)
+    X_CI = CartesianIndex.(idi_X,idj_X);  # a vector with the indices in X that match the indices in Xsur
+    return Xout, Xsur_CI, X_CI
+end
 
-#         if ii>nburn
-#             A_store[:,:,ii-nburn] = A;
-#             h_store[:,ii-nburn] = h;
-#             Σ_store[:,:,ii-nburn] = Σ;
-#             s2_h_store[:,ii-nburn] = s2_h;
-#             ρ_store[ii-nburn,] = ρ;
-#             σ_h2_store[ii-nburn,] = σ_h2;
-#             eh_store[:,ii-nburn] = eh;
-#         end
-#     end
-
-#     return A_store, h_store, Σ_store, s2_h_store, ρ_store, σ_h2_store, eh_store
-
-# end # end function Chan2020_LBA_csv_keywords
 
 @doc raw"""
-# Chan2020_LBA_csv(YY,VARSetup,HyperSetup)
+# Chan2020_LBA_csv(YY,VARSetup,hypSetup)
 
 Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
 
 """
-function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
-    @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = HyperSetup
+function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+    @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
 
     Y, Z, T, n = mlag_r(YY,p)
@@ -515,7 +554,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
     # VARsetup.n = 20;
     # print((n))
     
-    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,HyperSetup);
+    (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hypSetup);
     
     A_0 = reshape(beta_Minn,np1,n);
     V_Ainv = sparse(1:np1,1:np1,1.0./V_Minn)
@@ -589,11 +628,9 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup,HyperSetup)
         end
     end
 
-    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store, Z
+    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
     
 end # end function Chan2020_LBA_csv
-
-
 
 #--------------------------------------
 #--- FORECASTING BLOCK
@@ -629,6 +666,492 @@ function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_
 
 end # end function fcastChan2020_LBA_csv()
 
+
+#----------------------------------------
+#
+# CPZ 2024 functions
+#
+#----------------------------------------
+
+
+
+
+@doc raw"""
+# blkDiagMat_sp,blockMatInd_vec = makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
+
+Initializes a block-diagonal matrix with p optional blocks below the main diagonal matrix and populates it.
+
+After you have done so, you can later update the entries of the matrix by simply using 
+
+```lang=julia
+    blkDiagMat_sp.nzval[:] = @views blockMat[blkDiagMat_sp]
+```
+
+It can be used to generate the shape of H_B or Σ from Chan, Poon, and Zhu (2024) which hast the linear indices of the coefficient matrix.
+
+"""
+function makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
+
+    type = eltype(blockMat)
+
+    # initialize first the large matrix
+    blkDiagMat = zeros(type,Tfn,Tfn)
+
+    # The loop first populates the main block-diagonal (ij = 0)
+    # then it populates the first off-diagonal (ij = 1), 
+    # but stops before the last bottom right block, which is on the main diagonal and under which there is no entry
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMat[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = ones(type,n,n)
+        end
+    end
+    blkDiagMat_sp = sparse(blkDiagMat)
+
+    # Now we will use linear indices to map the values in blockMat to their positions in blkDiagMat
+    # - first initialize a matrix with Int as indices cannot be other than Int numbers
+    blkDiagMatInt_sp = convert.(Int,blkDiagMat_sp)
+    # - take the linear indices of blockMat
+    blockMatInd = LinearIndices(blockMat)
+
+    # - populate the diagonal of the Int block-diag matrix with the linear indices of blockMat
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMatInt_sp[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = blockMatInd[ :, 1 + (ij-0)*n : n + (ij-0)*n]
+        end
+    end
+
+    # - copy those linear indices to be used
+    blockMatInd_vec = deepcopy(blkDiagMatInt_sp.nzval)
+
+       # we can now update
+    blkDiagMat_sp.nzval[:] = blockMat[blockMatInd_vec]
+
+    return blkDiagMat_sp,blockMatInd_vec
+
+
+    # if you would like to use the BlockBandedMatrices package you can do so. The code for the loops above would be
+    # blk = blockMat  
+    # lin = LinearIndices(blk)
+    # bbm = BlockBandedMatrix(ones(Float64,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
+    # bbm_lin = BlockBandedMatrix(ones(Int,Tfn,Tfn),n*ones(Int,Tf,),n*ones(Int,Tf,),(p,0))
+    # for ij = 0:p
+    #     for ii in 1:div(Tfn,n)-ij
+    #         bbm_lin[Block(ii+ij,ii)]=lin[ 1 + (ij-0)*n : n + (ij-0)*n ,:]
+    #     end
+    # end
+    # blklin_ind = deepcopy(bbm_lin.data)
+    # blkDiagMat_sp=sparse(bbm)
+    # blkDiagMat_sp.nzval[:] = @view blk[blklin_ind];
+
+end
+
+
+
+@doc raw"""
+# blkDiagMat_sp,blockMatInd_vec = makeBlkDiag_ns(Tfn::Int,n::Int,p::Int,blockMat)
+
+Initializes a non-sparse block-diagonal matrix with p optional blocks below the main diagonal matrix and populates it.
+
+After you have done so, you can later update the entries of the matrix by simply using 
+
+```lang=julia
+    blkDiagMat[blkDiagMat_CI] = blockMat[blockMatInd_vec]
+```
+
+It can be used to generate the shape of H_B or Σ from Chan, Poon, and Zhu (2024) which hast the linear indices of the coefficient matrix.
+
+"""
+function makeBlkDiag_ns(Tfn::Int,n::Int,p::Int,blockMat)
+
+    type = eltype(blockMat)
+
+    # initialize first the large matrix
+    blkDiagMat = zeros(type,Tfn,Tfn)
+
+    # The loop first populates the main block-diagonal (ij = 0)
+    # then it populates the first off-diagonal (ij = 1), 
+    # but stops before the last bottom right block, which is on the main diagonal and under which there is no entry
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMat[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = ones(type,n,n)
+        end
+    end
+
+    # Now we will use linear indices to map the values in blockMat to their positions in blkDiagMat
+    # - first initialize a matrix with Int as indices cannot be other than Int numbers
+    blkDiagMatInt = convert.(Int,blkDiagMat)
+    # - take the linear indices of blockMat
+    blockMatInd = LinearIndices(blockMat)
+
+    # - populate the diagonal of the Int block-diag matrix with the linear indices of blockMat
+    for ij = 0:p
+        for ii = 1:div(Tfn,n)-ij
+            blkDiagMatInt[ ij*n + (ii-1)*n + 1 : n + (ii-1)*n +  ij*n, (ii-1)*n + 1 : n + (ii-1)*n] = blockMatInd[ :, 1 + (ij-0)*n : n + (ij-0)*n]
+        end
+    end
+
+    blkDiagMat_CI = findall(blkDiagMat.==1.0);  # Carteisan indices with data
+    # - copy those linear indices to be used
+    blockMatInd_vec = blkDiagMatInt[blkDiagMat_CI];
+
+       # we can now update
+    blkDiagMat[blkDiagMat_CI] = blockMat[blockMatInd_vec]
+
+    return blkDiagMat, blkDiagMat_CI, blockMatInd_vec
+
+end
+
+
+@doc raw"""
+
+"""
+function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-8)
+    
+    z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
+    T_z, n_z = size(z_tab);    # number of z vars
+    
+    M_z = zeros(T_z*n_z,nm)
+    z_vec = zeros(T_z*n_z,)
+    for ii_z = 1:n_z # iterator going through each variable in z_tab (along the columns)
+        datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
+        iter = CartesianIndices(YYt)
+        ym_ci = iter[Sm_bit] # a vector of y_m with cartesian indices of the missing values in YYt
+        z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
+        z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
+    
+        M_inter_ii = zeros(T_z,nm)
+        M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
+    
+        if size(datesHF,1)!==size(M_z_ii,2)
+            # error("The size of M does not match the number of dates available in z_tab. Maybe the low-frequency data is longer? The problem is with variable number ", z_var_pos[ii_z])
+        end
+    
+        # we need to watch out with the dates due to how the intertemporal constraint works Take for example growth rates Q and M
+        # y_t = 1/3 y_t - 2/3 y_{t-1} \dots - - 2/3 y_{t-3} - 1/3 y_{t-5}
+        # Intuitively, Q1 quarterly GDP (e.g. 01.01.2000) is the weighted sum of the monthly March, February, January, December, November, and October
+        # if y_t^Q is 01.01.2000, we need +2 and -2 months for the weights
+        if freq_mix_tp==(1,3,0)
+            hfWeights = [1/3; 2/3; 3/3; 2/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 1; hf_num2 = 1;  # this solves the range below ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2). This should give the indices -2, -1, 0, +1, +2
+        elseif freq_mix_tp==(3,12,0)
+            # quarterly and yearly data with growth rates
+            hfWeights = [1/4; 2/4; 3/4; 1; 3/4; 2/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 1; hf_num2 = 1;  # this solves the range below ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2). This should give the indices -3, -2, -1, 0, +1, +2, +3
+        elseif freq_mix_tp==(1,3,1)
+            hfWeights = [1/3; 1/3; 1/3]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 3; hf_num2 = -1;  # this solves the range below ii_M-div((n_hfw-hf_num),2): ii_M+div((n_hfw-hf_num),2). This should give the indices -0, +1, +2
+        elseif freq_mix_tp==(3,12,1)
+            hfWeights = [1/4; 1/4; 1/4; 1/4]; n_hfw = size(hfWeights,1); #number of weights, depends on the variable transformation and frequency
+            hf_num1 = 4; hf_num2 = -3;  # this solves the range below ii_M-div((n_hfw-hf_num),2): ii_M+div((n_hfw-hf_num),2). This should give the indices -0, +1, +2
+        else
+            error("This combination of frequencies and transformation has not been implemented")
+        end
+    
+        for ii_zi in eachindex(datesLF_ii) # iterator going through each time point in datesHF
+            ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
+            # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
+            M_z_ii[ii_zi,ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+        end
+        M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
+        z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
+    end
+    M_zsp = M_z;
+    O_zsp = Matrix(I,T_z,T_z).*scVal;
+    MOiM = M_zsp'*(O_zsp\M_zsp);
+    MOiz = M_zsp'*(O_zsp\z_vec);
+    return M_zsp, z_vec, T_z, MOiM, MOiz
+end
+
+@doc raw"""
+    CPZ_update_cB!()
+
+    Uses
+    B = [B1 B2] =  [a b e f 
+                    c d g h]
+    and populates the cB vector by taking 
+    B1*y_{-1} + B2*y_{-2}
+
+    The indices loop on line 4 can also be made to support
+    B = [B0 B1 B2]
+    structure, by omitting B0 and starting from B1 (same as above) if you use
+    Bmat[:,1+(p-io+kk)*n:(p-io+kk)*n+n]
+"""
+function CPZ_update_cB!(cB::Vector{Float64},Bmat,b0,Y0,cB_b0_LI::Vector{Int64},p::Int,n::Int)
+    for io = 0:p-1
+        ytmp = zeros(n,);
+        for kk = 0:io
+            ytmp1 = Bmat[:,1+(p-io+kk)*n-n:(p-io+kk)*n+n-n]*Y0[p-kk,:];  # This is \sum_1^p B_j y_{t-j}. For t = 0 : cB = b0 + B_p y0
+            ytmp = ytmp+ytmp1;
+        end
+        ytmp = ytmp + b0;
+        cB[n*(p-io)-n+1 : n*(p-io)-n+n,] = ytmp;
+    end
+    cB[n*p-n+1+n : end]=b0[cB_b0_LI]
+    return cB
+end
+
+
+
+@doc raw"""
+
+"""
+function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder)
+    varNamesLF = colnames(dataLF_tab)
+    z_tab = dataLF_tab;
+    # add the z_tab as NaN values in the high-frequency tab
+    fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), dataLF_tab[varNamesLF]),method=:outer)
+    fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the user wants them
+    fvarNames = colnames(fdataHF_tab)                # full list of the variable names
+    datesHF = timestamp(fdataHF_tab)
+    datesLF = timestamp(dataLF_tab)
+    freqL_date = Month(datesLF[2])-Month(datesLF[1])
+    freqH_date = Month(datesHF[2])-Month(datesHF[1])
+
+
+    # tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
+    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),0) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+    return fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames
+end
+
+
+
+@doc raw"""
+
+"""
+function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
+    (Tf,n) = size(YY); # full time span (with initial conditions)
+    k = n*(p+1); kn = k*n
+    Tfn = n*Tf;
+    
+    YYt = (YY');
+    vYYt = vec(YYt);
+        
+    Sm_bit = isnan.(YYt)
+    So_bit = .!isnan.(YYt)
+    longyo = vYYt[vec(So_bit)];
+
+    Y0 = @views YY[1:p,:]
+    if any(isnan.(Y0))
+        Y0[isnan.(Y0)]=zeros(size(Y0[isnan.(Y0)],1)); # for the first pass remove NaNs for zeroes
+        # print("NaNs found in Y0, replaced with zeros");
+    end
+    
+    indC_nan_wide = findall(Sm_bit) #  Cartesian indices of missing values
+    # indC_non_wide = findall(!isnan,YYt)  # Cartesian indices of not missing values
+    indC_non_wide = findall(So_bit)  # Cartesian indices of not missing values
+    
+    # convert between linear and cartesian indices
+    indL_all = LinearIndices(YYt);
+    indL_nan_wide = indL_all[indC_nan_wide] # are the linear indices of NaN values
+    indL_non_wide = indL_all[indC_non_wide] # are the linear indices of non NaN values
+       
+    
+    nm = sum(Sm_bit);       # the number of missing values
+    S_full = I(Tf*n);
+    Sm = S_full[:,indL_nan_wide]; # Sm, selection matrix selecting the missing values
+    So = S_full[:,indL_non_wide]; # So, selection matrix selecting hte observed values
+    Smsp = sparse(Sm);            # sparse Sm
+    Sosp = sparse(So);            # sparse So
+    
+    # Initialize matrices
+    H_Bsp, strctBdraw_LI = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
+    H_B, H_B_CI, strB2HB_ind = BEAVARs.makeBlkDiag_ns(Tfn,n,p, -structB_draw);
+    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+    Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);
+    cB_b0_LI = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_LI]
+    Xb = sparse(Matrix(1.0I, Tfn, Tfn))
+    cB = repeat(b0,Tf);
+    
+    Gm = H_B*Smsp; Go = H_B*Sosp; GΣ = Gm'*Σ_invsp; Kym = GΣ*Gm; # we can initialize all these and then mutate with mul!()
+    
+    # inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_LI, strctBdraw_LI, Σt_LI)
+    return YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym;
+end
+
+@doc raw"""
+
+"""
+function CPZ_draw!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,H_Bsp,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
+
+    # updating H_B
+    H_Bsp.nzval[:] = -structB_draw[sBd_ind];
+
+    # updating Σ_invsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_LI];
+
+    Gm = H_Bsp*Smsp
+    Go = H_Bsp*Sosp
+    Kym     = Gm'*Σ_invsp*Gm
+    CL = cholesky(Hermitian(Kym))
+    μ_y = CL.UP\(CL.PtL\Gm'*Σ_invsp)*(Xb*cB-Go*longyo)
+
+    YYt[Sm_bit] = μ_y + CL.UP\randn(nm,)
+    return YYt
+end
+
+
+
+
+
+@doc raw"""
+    Draw with restrictions
+"""
+function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI)
+    # updating cB
+    BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
+
+    # updating H_B
+    H_B[H_B_CI] = -structB_draw[sBd_ind];
+    # updating Σ_invFsp
+    Σ_invsp.nzval[:] = Σt_inv[Σt_LI];
+
+    mul!(Gm,H_B,Smsp);
+    mul!(Go,H_B,Sosp);
+    mul!(GΣ,Gm',Σ_invsp);
+    mul!(Kym,GΣ,Gm);
+    CL = cholesky(Hermitian(Kym))
+    long_pr = (cB-Go*longyo);
+    μ_y = CL.U\(CL.L\(GΣ*long_pr));
+
+    KymBar = MOiM + Kym;
+    CLBar = cholesky(Hermitian(KymBar))
+    μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
+
+    # YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
+    YYt[Sm_bit] = μ_yBar +  ldiv!(CLBar.U,randn(nm,))
+    return YYt
+end
+
+
+
+@doc raw"""
+    Updates parameters using an independennt Normal-Wishart prior
+"""
+function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,upd_these_vec,K_β,beta)
+    Y, X = mlagL!(YY,Y,X,p,n)
+    (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,upd_these_vec);
+
+    (idx_kappa1,idx_kappa2, V_Minn_vec, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_vec_inv = 1.0./V_Minn_vec;
+    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
+   
+    
+    Xsur_den[Xsur_CI] = X[X_CI]; 
+    mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
+    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn^-1
+    mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
+    K_β[:,:] .= V_Minn_inv .+ XtΣ_inv_X;
+    cholK_β = cholesky(Hermitian(K_β));    
+    
+    prior_mean = V_Minn_vec_inv.*beta_Minn;                   # V^-1_Minn * beta_Minn 
+    mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
+
+
+    beta_hat = ldiv!(cholK_β.U,ldiv!(cholK_β.L,prior_mean));
+
+    helper_vec = randn(k*n,);
+    beta = beta_hat + ldiv!(cholK_β.U,helper_vec);
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    fit = zeros(size(Y))
+    ee = Y-mul!(fit,X,B_draw');
+
+    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,ee'*ee))\I;
+
+    return beta,b0,B_draw,Σt_inv,structB_draw
+end
+
+
+
+
+@doc raw"""
+    Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based Normal-Wishart prior
+"""
+function CPZ_loop!(dataLF_tab,dataHF_tab,varList,varSetup,hypSetup)
+    @unpack n, p, nburn,nsave, const_loc = varSetup
+    ndraws = nsave+nburn;
+
+    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList)
+
+    YYwNA = values(fdataHF_tab);
+    YY = deepcopy(YYwNA);
+    Tf,n = size(YY);
+    
+    B_draw, structB_draw, Σt_inv, b0 = BEAVARs.initParamMatrices(n,p,const_loc) 
+
+    YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    
+    M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+
+    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+    
+    # we will be updating the priors for variables with many missing observations (>25%)
+    updP_vec = sum(Sm_bit,dims=2).>size(Sm_bit,2)*0.25;
+    
+    # Initialize matrices for updating the parameter draws from CPZ_Minn  
+    # ------------------------------------
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept = CPZ_initMinn(YY,p)
+    
+
+    # prepare matrices for storage
+    store_YY    = zeros(Tf,n,nsave);
+    store_beta  =zeros(n^2*p+n,nsave);
+    store_Σt    =zeros(n^2,nsave);
+
+    for ii = 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+        
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
+        # beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
+
+        
+        if ii>nburn
+            store_beta[:,ii-nburn]  = beta;
+            store_YY[:,:,ii-nburn]  = YY;
+            store_Σt[:,ii-nburn]    = 1.0./vec(Σt_inv);
+        end
+    end
+
+    return store_YY,store_beta, store_Σt, M_zsp, z_vec, Sm_bit
+end
+
+
+
+
+"""
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, intercept, K_β, beta,  = CPZ_initMinn(YY,p)
+
+    Initializes matrices for using the Minnesota prior in the CPZ2024 framework
+"""
+function CPZ_initMinn(YY,p)
+    Y, X, T, n, intercept       = mlagL(YY,p);
+    k                           = n*p+intercept
+    (deltaP, sigmaP, mu_prior)  = trainPriors(YY,p);                         # do OLS to initialize priors
+    V_Minn_inv                  = 1.0*Matrix(I,n*k,n*k);                    # prior matrix
+    V_Minn_inv_elview           = @view(V_Minn_inv[diagind(V_Minn_inv)]);   # will be used to update the diagonal    
+    XtΣ_inv_den                 = zeros(k*n,T*n);                           # this is X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
+    XtΣ_inv_X                   = zeros(n*k,n*k);                           # this is X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
+    Xsur_den, Xsur_CI, X_CI     = BEAVARs.SUR_form_dense(X,n);              # prepares the SUR form and the indices of the parameters for updating
+    K_β                         = zeros(n*k,n*k);                           # Variance covariance matrix of the parameters
+    beta                        = zeros(n*k,);                              # the parameters in a vector
+
+    return Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept
+end
+
+
+include("init_functions.jl")
+include("Banbura2010.jl")
+include("irfs.jl")
 
 
 #-------------------------------------

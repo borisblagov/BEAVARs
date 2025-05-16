@@ -37,6 +37,7 @@ plot(IRF_median[:,i_var,i_shock],ribbon = (IRF_median[:,i_var,i_shock].-IRF_68_l
 @unpack n_fcst,n,p,nsave=setup_str
 Amed = reshape(median(store_beta[:,:],dims=2),n*p+1,n);
 
+
 global Yfit = XX*Amed;
 global Yact = @views YY[p+1:end,:]
 plot([Yfit[:,1],Yact[:,1]])

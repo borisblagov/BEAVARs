@@ -1,3 +1,6 @@
+# this must be depreciated with multiple dispatch
+
+nclude("devPkgs.jl")
 using BEAVARs
 using DelimitedFiles
 

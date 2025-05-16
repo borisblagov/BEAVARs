@@ -14,4 +14,3 @@ data_de = data_ta_full[[:tpuCaldara, :pmiDE, :gdpDE, :invDE, :hicpDE, :euribor]]
 var_names = colnames(data_de)
 YY = values(data_de);
 
-
