@@ -9,8 +9,8 @@ using   Revise,
 # from init_functions.jl
 export mlag, mlagL, mlagL!, ols, percentile_mat
 
-# from Banbura2010
-export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, Banbura2010, hypBanbura2010
+# from Banbura, Giannone, Reichling 2010
+export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, BGR2010, hypBGR2010
 
 # from irfs.jl
 export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
@@ -40,7 +40,7 @@ end
 abstract type VARModelType end
 struct Chan2020_LBA_Minn_type <: VARModelType end
 struct Chan2020_LBA_csv_type <: VARModelType end
-struct Banbura2010_type <: VARModelType end
+struct BGR2010_type <: VARModelType end
 struct CPZ2024_type <: VARModelType end
 
 
@@ -84,7 +84,7 @@ Populates the constructor VARSetup with default and/or custom values.
 Mandatory arguments (write directly the argument):
 
     YY:     your data in a matrix form
-    model:  the model string you want to use. Currently supported are "Banbura2010", "Chan2020_LBA_Minn", "Chan2020_LBA_csv".
+    model:  the model string you want to use. Currently supported are "BGR2010", "Chan2020_LBA_Minn", "Chan2020_LBA_csv".
 
 Keyword arguments (e.g. p = 4). They don't have to be specified.
 
@@ -102,7 +102,7 @@ Outputs
 Examples
 
 ```lang=julia
-julia> YY = randn(10,3); makeSetup(YY::Array{Float64},"Banbura2010")
+julia> YY = randn(10,3); makeSetup(YY::Array{Float64},"BGR2010")
 (BEAVARs.VARSetup
   n: Int64 3
   p: Int64 4
@@ -111,14 +111,14 @@ julia> YY = randn(10,3); makeSetup(YY::Array{Float64},"Banbura2010")
   n_irf: Int64 16
   n_fcst: Int64 8
   const_loc: Int64 0
-, hypBanbura2010
+, hypBGR2010
   lambda: Float64 0.1
   epsi: Float64 0.001
 )
 ```
 
 ```lang=julia
-julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=500,nsave=100,n_irf=4,n_fcst=12)
+julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"BGR2010",p=1,nburn=500,nsave=100,n_irf=4,n_fcst=12)
 (BEAVARs.VARSetup
   n: Int64 5
   p: Int64 1
@@ -127,7 +127,7 @@ julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"Banbura2010",p=1,nburn=50
   n_irf: Int64 4
   n_fcst: Int64 12
   const_loc: Int64 0
-, hypBanbura2010
+, hypBGR2010
   lambda: Float64 0.1
   epsi: Float64 0.001
 )
@@ -143,14 +143,14 @@ function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst
         # hypSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_LBA_Minn_type()
-    elseif model_str == "Banbura2010"
+    elseif model_str == "BGR2010"
         const_loc = 0;
-        model_type = Banbura2010_type()
+        model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
         const_loc = 1;
         model_type = CPZ2024_type()
     else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
     return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
 end
@@ -165,14 +165,14 @@ function makeSetup(varList::Vector{Symbol},model_str::String,p::Int,n_irf::Int,n
         # hypSetup = hypChan2020()
         const_loc = 1;
         model_type = Chan2020_LBA_Minn_type()
-    elseif model_str == "Banbura2010"
+    elseif model_str == "BGR2010"
         const_loc = 0;
-        model_type = Banbura2010_type()
+        model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
         const_loc = 1;
         model_type = CPZ2024_type()
     else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    Banbura2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
     return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
 end
@@ -184,8 +184,11 @@ end
 function makeHypSetup(::Chan2020_LBA_Minn_type)
     return hypChan2020()
 end
-function makeHypSetup(::Banbura2010_type)
-    return hypBanbura2010()
+function makeHypSetup(::BGR2010_type)
+    return hypBGR2010()
+end
+function makeHypSetup(::CPZ2024_type)
+    return hypChan2020()
 end
 
 
@@ -220,9 +223,19 @@ function dispatchModel(YY,::Chan2020_LBA_csv_type,setup_str, hyper_str)
     return store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store
 end
 
-function dispatchModel(YY,::Banbura2010_type,setup_str, hyper_str)
-    println("Hello Banbura2010")
-    store_beta, store_sigma = Banbura2010(YY,setup_str,hyper_str);
+function dispatchModel(YY,::BGR2010_type,setup_str, hyper_str)
+    println("Hello BGR2010")
+    store_beta, store_sigma = BGR2010(YY,setup_str,hyper_str);
+    return store_beta, store_sigma
+end
+
+function dispatchModel(YYtup::Tuple,::CPZ2024_type,setup_str, hyper_str)
+    println("Hello CPZ2024")
+    dataHF_tab  = YYtup[1]
+    dataLF_tab  = YYtup[2]
+    varList     = YYtup[3]
+    store_YY,store_beta, store_sigma, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
+    return store_YY, store_beta, store_sigma, M_zsp, z_vec, Sm_bit
 end
 
 #----------------------------------------
@@ -512,7 +525,15 @@ function draw_h_csv_opt!(h::Vector{Float64},s2_h,ρ,σ_h2,n,H_ρ)
     return h, accept
 end # end draw_h_csv!
 
+"""
+    Xsur = SUR_form(X,n)
 
+    Creates a sparse matrix in a form for Seemingly Unrelated Regression (SUR). 
+        
+    Returns
+        Xsur:    matrix with a structure for SUR
+
+"""
 function SUR_form(X,n)
     repX = kron(X,ones(n,1));
     T,k = size(X);
@@ -523,18 +544,30 @@ function SUR_form(X,n)
     return Xout
 end
 
+
+"""
+    Xsur, Xsur_CI, X_CI = SUR_form_dense(X,n)
+
+    Creates matrix in a form for Seemingly Unrelated Regression (SUR). 
+        
+    Returns
+        Xsur:    matrix with a structure for SUR
+        Xsur_CI: Cartesian indices of the elements in Xsur that are matched to x
+        X_CI:    Cartesian indices of the elements of X that are matched to Xsur
+
+"""
 function SUR_form_dense(X,n)
     repX = kron(X,ones(n,1));
     T,k = size(X);
     idi = repeat(1:T*n,inner=k);
     idj=repeat(1:k*n,T);
-    Xout = Matrix(sparse(idi,idj,vec(repX')));
+    Xsur = Matrix(sparse(idi,idj,vec(repX')));
     Xsur_CI = CartesianIndex.(idi,idj);
 
     idi_X = repeat(1:T,inner=k*n);
     idj_X=repeat(1:k,T*n)
     X_CI = CartesianIndex.(idi_X,idj_X);  # a vector with the indices in X that match the indices in Xsur
-    return Xout, Xsur_CI, X_CI
+    return Xsur, Xsur_CI, X_CI
 end
 
 
@@ -548,7 +581,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
 
-    Y, Z, T, n = mlag_r(YY,p)
+    Y, X, T, n = mlagL(YY,p)
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,p)
     np1 = n*p+1; # number of parameters per equation
     # VARsetup.n = 20;
@@ -583,9 +616,9 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
     dg_ind_Ωinv = diagind(Ωinv);
     for ii = 1:ndraws 
         Ωinv[dg_ind_Ωinv]=exp.(-h);
-        ZtΩinv = Z'*Ωinv;
+        ZtΩinv = X'*Ωinv;
         
-        K_A = V_Ainv + ZtΩinv*Z;
+        K_A = V_Ainv + ZtΩinv*X;
         A_hat = K_A\(V_Ainv\A_0 + ZtΩinv*Y);
         S_hat = S_0 + A_0'*V_Ainv*A_0 + Y'*Ωinv*Y - A_hat'*K_A*A_hat;
         S_hat = (S_hat+S_hat')/2;
@@ -595,7 +628,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
         A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*cholΣ;
     
         # Errors
-        U = Y - Z*A
+        U = Y - X*A
         s2_h = sum((U/cholΣ).^2,dims=2)
     
         draw_h_csv!(h,s2_h,ρ,σ_h2,n,H_ρ)
@@ -1074,7 +1107,7 @@ end
 @doc raw"""
     Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based Normal-Wishart prior
 """
-function CPZ_loop!(dataLF_tab,dataHF_tab,varList,varSetup,hypSetup)
+function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
     @unpack n, p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
 
@@ -1150,7 +1183,7 @@ end
 
 
 include("init_functions.jl")
-include("Banbura2010.jl")
+include("BGR2010.jl")
 include("irfs.jl")
 
 
