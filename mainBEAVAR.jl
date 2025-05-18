@@ -8,9 +8,10 @@ using TimeSeries
 # using LinearAlgebra
 
 
-
-
 YY = rand(35,4);
+
+YYinp, model_type, nargs, hyp_strct, var_strct = BEAVARs.beavar2("CPZ2024",YY)
+
 VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_csv",p=1,nburn=100,nsave=500);
 VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_Minn",p=1,nburn=100,nsave=500);
 
@@ -42,3 +43,5 @@ dataLF_tab = dataQ_bg_tab;
 dataHF_tab = dataM_bg_tab;
 
 YYtup = (dataHF_tab,dataLF_tab,varList)
+
+YYtest = BEAVARs.beavar2("CPZ2024",YY)

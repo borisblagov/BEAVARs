@@ -49,8 +49,6 @@ abstract type modelSetup end
 abstract type modelHypSetup end
 abstract type functionInputs end
 
-# empty structure for initialising the model
-struct hypDefault_strct <: modelHypSetup end
 
 # structure initializing the VAR
 @with_kw struct VARSetup <: modelSetup
@@ -177,6 +175,30 @@ function makeSetup(varList::Vector{Symbol},model_str::String,p::Int,n_irf::Int,n
     return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
 end
 
+function selectModel(model_str::String)
+    if model_str == "Chan2020_LBA_csv"
+        # hypSetup = hypChan2020()
+        intercept = 1;
+        model_type = Chan2020_LBA_csv_type()
+    elseif model_str == "Chan2020_LBA_Minn"
+        # hypSetup = hypChan2020()
+        intercept = 1;
+        model_type = Chan2020_LBA_Minn_type()
+    elseif model_str == "BGR2010"
+        intercept = 0;
+        model_type = BGR2010_type()
+    elseif model_str == "CPZ2024"
+        intercept = 1;
+        model_type = CPZ2024_type()
+    else
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+    end
+    return model_type, intercept
+end
+
+
+# empty structure for initialising the model
+struct hypDefault_strct <: modelHypSetup end
 
 function makeHypSetup(::Chan2020_LBA_csv_type)
     return hypChan2020()
@@ -208,6 +230,30 @@ function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::
     dispatchModel(YY,model_type,setup_str, hyp_strct);
     
     return setup_str, hyp_strct
+end
+
+function beavar2(model_str=model_name::String,YYinp... ;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+    model_type, intercept = BEAVARs.selectModel(model_str)
+    nargs = length(YYinp);
+    
+    # checking if user supplied the hyperparameter structure
+    if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
+        hyp_strct = makeHypSetup(model_type); # println("using the default hyperparameters")
+    else                                            # else use supplied    
+        hyp_strct = hyp; # println("using the supplied parameters")
+    end
+
+    if typeof(YYinp[1])<:Array{}
+        n = size(YYinp[1],2)
+    end
+    var_strct = VARSetup(n,p,nsave,nburn,n_irf,n_fcst,intercept)
+
+    # dispatchModel(YY,model_type,setup_str, hyp_strct);
+    
+    # return setup_str, hyp_strct
+    
+    # return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
+    return YYinp, model_type, nargs, hyp_strct, var_strct
 end
 
 function dispatchModel(YY,::Chan2020_LBA_Minn_type,setup_str, hyper_str)
