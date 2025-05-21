@@ -44,7 +44,7 @@ dataQ_bg_tab = percentchange(dataQ_bg_raw[varNamesLF])
 dataLF_tab = dataQ_bg_tab;
 dataHF_tab = dataM_bg_tab;
 
-@time out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,n_burn=2000,n_save=2000);
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,n_burn=2000,n_save=2000);
 
 @unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
 
