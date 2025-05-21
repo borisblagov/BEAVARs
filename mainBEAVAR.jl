@@ -10,7 +10,19 @@ using TimeSeries
 
 YY = rand(35,4);
 YYlist = [:Y1; :Y2; :Y3; :Y4]
-out_strct, varSetup,hypSetup = beavar("BGR2010",YY)
+
+
+dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',');
+YY_TA = dataM_bg_full[2:end-2,[:survIndustryBG; :ipBG; :empBG]];
+
+
+out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_csv",YY_TA);
+
+Yfor3D, hfor3D = BEAVARs.forecast(out_strct,varSetup)
+
+Yfor_med = median(Yfor3D,dims=3)
+
+plot(Yfor_med[:,1])
 
 # YY_tup, model_type, hyp_strct = BEAVARs.beavar2("BGR2010",YY)
 # YY_tup, model_type, hyp_strct, set_strct, store_beta, store_sigma = BEAVARs.beavar2("CPZ2024",dataHF_tab,dataLF_tab,varList,p=1,n_burn=100,n_save=100)
@@ -24,7 +36,9 @@ out_strct, varSetup,hypSetup = beavar("BGR2010",YY)
 
 
 
-dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',')
+dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',');
+
+
 dataQ_bg_full = readtimearray("data/dataQ_BG.csv"; format="dd/mm/yyyy", delim=',')
 varNamesM_full = colnames(dataM_bg_full)
 

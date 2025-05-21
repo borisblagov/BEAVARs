@@ -17,22 +17,15 @@ export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta
 export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
-export prior_Minn, SUR_form, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
+export prior_Minn, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
 export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 
-export makeSetup, fortschr!, beavar, dispatchModel, makeOutput
+export makeSetup, beavar, dispatchModel, makeOutput
 
 # Structures, to be uncommented later
 export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType, VARSetup, VAROutput
 
 
-function fortschr!(Yfor,p,A)
-    for i_for = 1:8
-        tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
-        tclass = [1;tclass];
-        Yfor[p+i_for,:]=tclass'*A;
-    end
-end
 
 
 # Structures for multiple dispatch across models
@@ -90,7 +83,8 @@ end
     s2_h_store::Array{}     # 
     store_ρ::Array{}        # 
     store_σ_h2::Array{}     # 
-    eh_store::Array{}       # 
+    eh_store::Array{}       #
+    YY::Array{}             #
 end
 
 @with_kw struct VAROutput_CPZ2024 <: modelOutput
@@ -168,6 +162,10 @@ function dispatchModel(::Chan2020_LBA_Minn_type,YY_tup, hyper_str, p,n_burn,n_sa
     intercept = 1;
     if isa(YY_tup[1],Array{})
         YY = YY_tup[1];
+    elseif isa(YY_tup[1],TimeArray{})
+        YY_TA = YY_tup[1];
+        YY = values(YY_TA)
+        varList = colnames(YY_TA)
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_Σ = Chan2020_LBA_Minn(YY,set_strct,hyper_str);
@@ -181,10 +179,14 @@ function dispatchModel(::Chan2020_LBA_csv_type,YY_tup, hyper_str, p,n_burn,n_sav
     intercept = 1;
     if isa(YY_tup[1],Array{})
         YY = YY_tup[1];
+    elseif isa(YY_tup[1],TimeArray{})
+        YY_TA = YY_tup[1];
+        YY = values(YY_TA)
+        varList = colnames(YY_TA)
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, eh_store)
+    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, eh_store,YY)
     return out_strct, set_strct
 end
 
@@ -193,6 +195,10 @@ function dispatchModel(::BGR2010_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n
     intercept = 0;
     if isa(YY_tup[1],Array{})
         YY = YY_tup[1];
+    elseif isa(YY_tup[1],TimeArray{})
+        YY_TA = YY_tup[1];
+        YY = values(YY_TA)
+        varList = colnames(YY_TA)
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_Σ = BGR2010(YY,set_strct,hyper_str);
@@ -246,7 +252,7 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
 
     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
     k = n*p+1;
-    Xsur = SUR_form(X,n)
+    Xsur = BEAVARs.SUR_form(X,n)
     XiSig = Xsur'*kron(sparse(Matrix(1.0I, T, T)),sparse(1:n,1:n,1.0./sigmaP));
     K_β = sparse(1:n*k,1:n*k,1.0./V_Minn) + XiSig*Xsur;
     cholK_β = cholesky(Hermitian(K_β));
@@ -641,6 +647,39 @@ end # end function Chan2020_LBA_csv
 #--- FORECASTING BLOCK
 #----------------
 function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
+    
+    
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+    
+        hfor = @views hfor3D[:,i_draw];
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        ρ_draw = @view store_ρ[i_draw];
+        σ_h2_draw = @views store_σ_h2[i_draw];
+        Σ_draw = @views store_Σ[:,:,i_draw];
+                
+        for i_for = 1:n_fcst
+            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D, hfor3D
+
+
+end # end function fcastChan2020_LBA_csv()
+
+function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
+    @unpack store_β, store_Σ, store_h, s2_h_store, store_ρ, store_σ_h2,eh_store, YY = VAROutput
     @unpack n_fcst,p,nsave = VARSetup
     n = size(YY,2);
 
