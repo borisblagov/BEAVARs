@@ -35,7 +35,7 @@ dataQ_bg_raw = dataQ_bg_full
 varNamesM_full = colnames(dataM_bg_full)
 varNamesHF = [:survIndustryBG];
 varNamesLF = [:gdpBG]
-varList   = [varNamesLF,varNamesHF];
+varList   = [varNamesLF; varNamesHF];
 
 # select only the needed data and transform it if needed
 dataM_bg_tab = dataM_bg_raw[varNamesHF];
@@ -44,7 +44,7 @@ dataQ_bg_tab = percentchange(dataQ_bg_raw[varNamesLF])
 dataLF_tab = dataQ_bg_tab;
 dataHF_tab = dataM_bg_tab;
 
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,n_save = 5000, n_burn = 5000,p=5)
+@time out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,n_burn=2000,n_save=2000);
 
 @unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
 

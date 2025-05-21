@@ -4,7 +4,8 @@ using   Revise,
         Distributions, 
         SparseArrays,
         TimeSeries, 
-        Parameters
+        Parameters,
+        ProgressMeter
 
 # from init_functions.jl
 export mlag, mlagL, mlagL!, ols, percentile_mat
@@ -1071,8 +1072,7 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     # errors 
     fit = zeros(size(Y))
     ee = Y-mul!(fit,X,B_draw');
-
-    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,ee'*ee))\I;
+    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,Diagonal(sigmaP)+ee'*ee))\I;
 
     return beta,b0,B_draw,Σt_inv,structB_draw
 end
@@ -1116,7 +1116,7 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
     store_β  =zeros(n^2*p+n,nsave);
     store_Σt    =zeros(n^2,nsave);
 
-    for ii = 1:ndraws
+    for ii in 1:ndraws
         # draw of the missing values
         BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
         
