@@ -22,7 +22,7 @@ export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 export makeSetup, fortschr!, beavar, dispatchModel, makeOutput
 
 # Structures, to be uncommented later
-export modelSetup, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType
+export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType, VARSetup, VAROutput
 
 
 function fortschr!(Yfor,p,A)
@@ -46,19 +46,59 @@ struct CPZ2024_type <: VARModelType end
 
 # types for parameters (VAR setup parameters, hyperparameters, and output storage)
 abstract type modelSetup end
+abstract type modelOutput end
 abstract type modelHypSetup end
 abstract type functionInputs end
 
 
 # structure initializing the VAR
+# Constructor
+@doc raw"""
+# set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+Populates the constructor VARSetup with default and/or custom values.
+
+    p:      number of lags, default is 4
+    nburn:  number of burn-in draws that will be discarded, default is 2000
+    nsave:  number of retained draws (total is then nburn + nsave), default is 1000
+    n_irf:  horizon of impulse responses, default is 16
+    n_fcst: horizon of forecasting periods, default is 8
+
+Outputs
+
+    VARSetup: the setup structure for the BEAVARs
+```
+"""
 @with_kw struct VARSetup <: modelSetup
-    n::Int          # number of variables (will be overwritten)
     p::Int          # number of lags
     nsave::Int      # gibbs to save
     nburn::Int      # gibbs to burn
     n_irf::Int      # number of impulse responses
     n_fcst::Int     # number of forecast periods
     const_loc::Int  # location of the constant
+end
+
+@with_kw struct VAROutput <: modelOutput
+    store_β::Array{}      # 
+    store_Σ::Array{}      # 
+end
+
+@with_kw struct VAROutput_Chan2020csv <: modelOutput
+    store_β::Array{}        # 
+    store_Σ::Array{}        # 
+    store_h::Array{}        # 
+    s2_h_store::Array{}     # 
+    store_ρ::Array{}        # 
+    store_σ_h2::Array{}     # 
+    eh_store::Array{}       # 
+end
+
+@with_kw struct VAROutput_CPZ2024 <: modelOutput
+    store_β::Array{}        # 
+    store_Σ::Array{}        # 
+    store_YY::Array{}
+    M_zsp::Array{} 
+    z_vec::Array{} 
+    Sm_bit::Array{}
 end
 
 struct CPZ2024_Inputs <: functionInputs
@@ -73,127 +113,20 @@ struct CPZ2024_Inputs <: functionInputs
     Σt_LI
 end
 
-# Constructor
-@doc raw"""
-# makeSetup(YY::Array{Float64},model=model_str; p::Int,nburn::Int,nsave::Int,n_irf::Int,n_fcst::Int)
-
-Populates the constructor VARSetup with default and/or custom values.
-
-Mandatory arguments (write directly the argument):
-
-    YY:     your data in a matrix form
-    model:  the model string you want to use. Currently supported are "BGR2010", "Chan2020_LBA_Minn", "Chan2020_LBA_csv".
-
-Keyword arguments (e.g. p = 4). They don't have to be specified.
-
-    p:      number of lags, default is 4
-    nburn:  number of burn-in draws that will be discarded, default is 2000
-    nsave:  number of retained draws (total is then nburn + nsave), default is 1000
-    n_irf:  horizon of impulse responses, default is 16
-    n_fcst: horizon of forecasting periods, default is 8
-
-Outputs
-
-    VARSetup: the setup structure for the BEAVARs
-    hypSetup: the setup structure for hyperparameters with default values. If you want to modify these, disregard the output and do it outside
-    
-Examples
-
-```lang=julia
-julia> YY = randn(10,3); makeSetup(YY::Array{Float64},"BGR2010")
-(BEAVARs.VARSetup
-  n: Int64 3
-  p: Int64 4
-  nsave: Int64 1000
-  nburn: Int64 1000
-  n_irf: Int64 16
-  n_fcst: Int64 8
-  const_loc: Int64 0
-, hypBGR2010
-  lambda: Float64 0.1
-  epsi: Float64 0.001
-)
-```
-
-```lang=julia
-julia> YY = randn(10,5); makeSetup(YY::Array{Float64},"BGR2010",p=1,nburn=500,nsave=100,n_irf=4,n_fcst=12)
-(BEAVARs.VARSetup
-  n: Int64 5
-  p: Int64 1
-  nsave: Int64 100
-  nburn: Int64 500
-  n_irf: Int64 4
-  n_fcst: Int64 12
-  const_loc: Int64 0
-, hypBGR2010
-  lambda: Float64 0.1
-  epsi: Float64 0.001
-)
-```
-"""
-function makeSetup(YY::Array{Float64},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
-    T,n = size(YY);
-    if model_str == "Chan2020_LBA_csv"
-        # hypSetup = hypChan2020()
-        const_loc = 1;
-        model_type = Chan2020_LBA_csv_type()
-    elseif model_str == "Chan2020_LBA_Minn"
-        # hypSetup = hypChan2020()
-        const_loc = 1;
-        model_type = Chan2020_LBA_Minn_type()
-    elseif model_str == "BGR2010"
-        const_loc = 0;
-        model_type = BGR2010_type()
-    elseif model_str == "CPZ2024"
-        const_loc = 1;
-        model_type = CPZ2024_type()
-    else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
-    end
-    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
-end
-
-function makeSetup(varList::Vector{Symbol},model_str::String,p::Int,n_irf::Int,n_fcst::Int,nburn::Int,nsave::Int)
-    n = size(varList,1);
-    if model_str == "Chan2020_LBA_csv"
-        # hypSetup = hypChan2020()
-        const_loc = 1;
-        model_type = Chan2020_LBA_csv_type()
-    elseif model_str == "Chan2020_LBA_Minn"
-        # hypSetup = hypChan2020()
-        const_loc = 1;
-        model_type = Chan2020_LBA_Minn_type()
-    elseif model_str == "BGR2010"
-        const_loc = 0;
-        model_type = BGR2010_type()
-    elseif model_str == "CPZ2024"
-        const_loc = 1;
-        model_type = CPZ2024_type()
-    else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
-    end
-    return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
-end
 
 function selectModel(model_str::String)
     if model_str == "Chan2020_LBA_csv"
-        # hypSetup = hypChan2020()
-        intercept = 1;
         model_type = Chan2020_LBA_csv_type()
     elseif model_str == "Chan2020_LBA_Minn"
-        # hypSetup = hypChan2020()
-        intercept = 1;
         model_type = Chan2020_LBA_Minn_type()
     elseif model_str == "BGR2010"
-        intercept = 0;
         model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
-        intercept = 1;
         model_type = CPZ2024_type()
     else
         error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
     end
-    return model_type, intercept
+    return model_type
 end
 
 
@@ -214,27 +147,8 @@ function makeHypSetup(::CPZ2024_type)
 end
 
 
-function beavar(YY::Array{Float64},model_str=model_name::String;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
-    setup_str, model_type = makeSetup(YY,model_str,p,n_irf,n_fcst,nburn,nsave);
-    
-    # checking if user supplied the hyperparameter structure
-    if isa(hyp,hypDefault_strct)
-        # if not supplied, make a default one
-        hyp_strct = makeHypSetup(model_type)
-        # println("using the default hyperparameters")
-    else        
-        # else use supplied
-        hyp_strct = hyp
-        # println("using the supplied parameters")
-    end
-    dispatchModel(YY,model_type,setup_str, hyp_strct);
-    
-    return setup_str, hyp_strct
-end
-
-function beavar2(model_str=model_name::String,YYinp... ;p::Int=4,nburn::Int=1000,nsave::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
-    model_type, intercept = BEAVARs.selectModel(model_str)
-    nargs = length(YYinp);
+function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+    model_type = BEAVARs.selectModel(model_str)
     
     # checking if user supplied the hyperparameter structure
     if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
@@ -242,46 +156,59 @@ function beavar2(model_str=model_name::String,YYinp... ;p::Int=4,nburn::Int=1000
     else                                            # else use supplied    
         hyp_strct = hyp; # println("using the supplied parameters")
     end
+        
+    out_strct, set_strct = dispatchModel(model_type,YY_tup, hyp_strct,p,n_burn,n_save,n_irf,n_fcst);
+    return out_strct, set_strct, hyp_strct
+end
 
-    if typeof(YYinp[1])<:Array{}
-        n = size(YYinp[1],2)
+
+function dispatchModel(::Chan2020_LBA_Minn_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
+    println("Hello Minn")
+    intercept = 1;
+    if isa(YY_tup[1],Array{})
+        YY = YY_tup[1];
     end
-    var_strct = VARSetup(n,p,nsave,nburn,n_irf,n_fcst,intercept)
-
-    # dispatchModel(YY,model_type,setup_str, hyp_strct);
-    
-    # return setup_str, hyp_strct
-    
-    # return VARSetup(n,p,nsave,nburn,n_irf,n_fcst,const_loc), model_type
-    return YYinp, model_type, nargs, hyp_strct, var_strct
-end
-
-function dispatchModel(YY,::Chan2020_LBA_Minn_type,setup_str, hyper_str)
-    # println("Hello Minn")
-    store_beta, store_sigma = Chan2020_LBA_Minn(YY,setup_str,hyper_str);
-    return store_beta, store_sigma
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_β, store_Σ = Chan2020_LBA_Minn(YY,set_strct,hyper_str);
+    out_strct = VAROutput(store_β,store_Σ)
+    return out_strct, set_strct
 end
 
 
-function dispatchModel(YY,::Chan2020_LBA_csv_type,setup_str, hyper_str)
+function dispatchModel(::Chan2020_LBA_csv_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
     println("Hello csv")
-    store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,setup_str,hyper_str);
-    return store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store
+    intercept = 1;
+    if isa(YY_tup[1],Array{})
+        YY = YY_tup[1];
+    end
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,set_strct,hyper_str);
+    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, eh_store)
+    return out_strct, set_strct
 end
 
-function dispatchModel(YY,::BGR2010_type,setup_str, hyper_str)
+function dispatchModel(::BGR2010_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
     println("Hello BGR2010")
-    store_beta, store_sigma = BGR2010(YY,setup_str,hyper_str);
-    return store_beta, store_sigma
+    intercept = 0;
+    if isa(YY_tup[1],Array{})
+        YY = YY_tup[1];
+    end
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_β, store_Σ = BGR2010(YY,set_strct,hyper_str);
+    out_strct = VAROutput(store_β,store_Σ)
+    return out_strct, set_strct
 end
 
-function dispatchModel(YYtup::Tuple,::CPZ2024_type,setup_str, hyper_str)
+function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
     println("Hello CPZ2024")
-    dataHF_tab  = YYtup[1]
-    dataLF_tab  = YYtup[2]
-    varList     = YYtup[3]
-    store_YY,store_beta, store_sigma, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
-    return store_YY, store_beta, store_sigma, M_zsp, z_vec, Sm_bit
+    intercept = 1;
+    dataHF_tab  = YY_tup[1]
+    dataLF_tab  = YY_tup[2]
+    varList     = YY_tup[3]
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_YY,store_β, store_Σ, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σ,store_YY,M_zsp, z_vec, Sm_bit)
+    return out_strct, set_strct
 end
 
 #----------------------------------------
@@ -325,17 +252,17 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     beta_hat = cholK_β.UP\(cholK_β.PtL\(beta_Minn./V_Minn + XiSig * Yt))
     
     ndraws = nsave+nburn;
-    store_beta=zeros(n^2*p+n,nsave)
+    store_β=zeros(n^2*p+n,nsave)
     for ii = 1:ndraws 
         beta = beta_hat + cholK_β.UP\randn(k*n);
         if ii>nburn
-            store_beta[:,ii-nburn] = beta;
+            store_β[:,ii-nburn] = beta;
         end
     end
 
     Σ = Matrix(1.0I, n, n); Σ[diagind(Σ)]=diag(Σ).*sigmaP;
-    store_sigma = repeat(vec(Σ),1,nsave);
-    return store_beta, store_sigma
+    store_Σ = repeat(vec(Σ),1,nsave);
+    return store_β, store_Σ
 end
 
 
@@ -630,8 +557,6 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
     Y, X, T, n = mlagL(YY,p)
     (deltaP, sigmaP, mu_prior) = trainPriors(YY,p)
     np1 = n*p+1; # number of parameters per equation
-    # VARsetup.n = 20;
-    # print((n))
     
     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_NonConj(n,p,sigmaP,hypSetup);
     
@@ -648,7 +573,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
     
     # This part follows page 19 of Chan, J. (2020)
     ndraws = nsave+nburn;
-    store_beta = zeros(np1*n,nsave);
+    store_β = zeros(np1*n,nsave);
     store_h = zeros(T,nsave);
     store_Σ = zeros(n,n,nsave);
     store_s2_h = zeros(T,nsave);
@@ -697,7 +622,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
         # H_ρ.ev.=-ρ.*ones(T-1,)
 
         if ii>nburn
-            store_beta[:,ii-nburn] = vec(A);
+            store_β[:,ii-nburn] = vec(A);
             store_h[:,ii-nburn] = h;
             store_Σ[:,:,ii-nburn] = Σ;
             store_s2_h[:,ii-nburn] = s2_h;
@@ -707,15 +632,16 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
         end
     end
 
-    return store_beta, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
+    return store_β, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
     
 end # end function Chan2020_LBA_csv
 
 #--------------------------------------
 #--- FORECASTING BLOCK
 #----------------
-function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_ρ, store_σ_h2)
-    @unpack n_fcst,n,p,nsave = VARSetup
+function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
 
     Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
     hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
@@ -728,7 +654,7 @@ function fcastChan2020_LBA_csv(YY,VARSetup, store_beta, store_h,store_Σ, store_
     
         hfor = @views hfor3D[:,i_draw];
         Yfor = @views Yfor3D[:,:,i_draw];
-        A_draw = @views reshape(store_beta[:,i_draw],n*p+1,n);
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
         ρ_draw = @view store_ρ[i_draw];
         σ_h2_draw = @views store_σ_h2[i_draw];
         Σ_draw = @views store_Σ[:,:,i_draw];
@@ -972,7 +898,8 @@ end
 
 
 @doc raw"""
-
+    varOrder must be `Vector{Symbol}` and not `Vector{Vector{Symbol}}`
+    e.g. [varNamesLF; varNamesHF] and not [varNamesLF, varNamesHF]
 """
 function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder)
     varNamesLF = colnames(dataLF_tab)
@@ -995,7 +922,7 @@ end
 
 
 @doc raw"""
-
+    
 """
 function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     (Tf,n) = size(YY); # full time span (with initial conditions)
@@ -1077,7 +1004,7 @@ end
 @doc raw"""
     Draw with restrictions
 """
-function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI)
+function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws)
     # updating cB
     BEAVARs.CPZ_update_cB!(cB,B_draw[:,2:end],B_draw[:,1],Y0,cB_b0_LI,p,n)
 
@@ -1098,8 +1025,11 @@ function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_L
     CLBar = cholesky(Hermitian(KymBar))
     μ_yBar = CLBar.U\(CLBar.L\(MOiz + Kym*μ_y))
 
-    # YYt[Sm_bit] = μ_yBar +  CLBar.U\randn(nm,)
-    YYt[Sm_bit] = μ_yBar +  ldiv!(CLBar.U,randn(nm,))
+    mdraws = zeros(nm,nmdraws)
+    for i_draw in 1:nmdraws
+        mdraws[:,i_draw] = μ_yBar +  ldiv!(CLBar.U,randn(nm,))
+    end    
+    YYt[Sm_bit] = dropdims(median(mdraws,dims=2),dims=2);
     return YYt
 end
 
@@ -1154,8 +1084,9 @@ end
     Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based Normal-Wishart prior
 """
 function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
-    @unpack n, p, nburn,nsave, const_loc = varSetup
+    @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
+    nmdraws = 10;
 
     fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList)
 
@@ -1170,7 +1101,7 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
     M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
 
     # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
-    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
     
     # we will be updating the priors for variables with many missing observations (>25%)
     updP_vec = sum(Sm_bit,dims=2).>size(Sm_bit,2)*0.25;
@@ -1182,12 +1113,12 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
 
     # prepare matrices for storage
     store_YY    = zeros(Tf,n,nsave);
-    store_beta  =zeros(n^2*p+n,nsave);
+    store_β  =zeros(n^2*p+n,nsave);
     store_Σt    =zeros(n^2,nsave);
 
     for ii = 1:ndraws
         # draw of the missing values
-        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI);
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
         
         # draw of the parameters
         beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
@@ -1195,13 +1126,13 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
 
         
         if ii>nburn
-            store_beta[:,ii-nburn]  = beta;
+            store_β[:,ii-nburn]  = beta;
             store_YY[:,:,ii-nburn]  = YY;
             store_Σt[:,ii-nburn]    = 1.0./vec(Σt_inv);
         end
     end
 
-    return store_YY,store_beta, store_Σt, M_zsp, z_vec, Sm_bit
+    return store_YY,store_β, store_Σt, M_zsp, z_vec, Sm_bit
 end
 
 
