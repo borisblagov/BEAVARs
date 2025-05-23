@@ -89,7 +89,7 @@ end
 
 @with_kw struct VAROutput_CPZ2024 <: modelOutput
     store_β::Array{}        # 
-    store_Σ::Array{}        # 
+    store_Σt_inv::Array{}        # 
     store_YY::Array{}
     M_zsp::Array{} 
     z_vec::Array{} 
@@ -201,8 +201,8 @@ function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n
     dataLF_tab  = YY_tup[2]
     varList     = YY_tup[3]
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σ, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σ,store_YY,M_zsp, z_vec, Sm_bit)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit)
     return out_strct, set_strct
 end
 
@@ -1071,8 +1071,8 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
 
     # prepare matrices for storage
     store_YY    = zeros(Tf,n,nsave);
-    store_β  =zeros(n^2*p+n,nsave);
-    store_Σt    =zeros(n^2,nsave);
+    store_β     = zeros(n^2*p+n,nsave);
+    store_Σt_inv= zeros(n,n,nsave);
 
     for ii in 1:ndraws
         # draw of the missing values
@@ -1086,11 +1086,11 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
         if ii>nburn
             store_β[:,ii-nburn]  = beta;
             store_YY[:,:,ii-nburn]  = YY;
-            store_Σt[:,ii-nburn]    = 1.0./vec(Σt_inv);
+            store_Σt_inv[:,:,ii-nburn]    = Σt_inv;
         end
     end
 
-    return store_YY,store_β, store_Σt, M_zsp, z_vec, Sm_bit
+    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit
 end
 
 
@@ -1214,6 +1214,31 @@ function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
 end # end function forecast Chan2020_LBA_Minn()
 
 
+function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
+    @unpack store_β, store_Σt_inv, store_YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+
+    YY = median(store_YY,dims=3)
+
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        Σ_draw = @views inv(store_Σt_inv[:,:,i_draw]);
+                
+        for i_for = 1:n_fcst
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (cholesky(Hermitian(Σ_draw)).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D
+
+end # end function fcastCPZ2024()
 
 
 include("init_functions.jl")

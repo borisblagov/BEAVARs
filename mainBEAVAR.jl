@@ -3,7 +3,7 @@ using BEAVARs
 using TimeSeries
 using Parameters
 # using DelimitedFiles
-# using Plots
+using Plots
 # using Statistics
 # using LinearAlgebra
 
@@ -76,3 +76,16 @@ yy_high =  percentile_mat(store_YY, 0.95; dims=3);
 plot(yy1[:,1]); plot!(yy_low[:,1]); plot!(yy_high[:,1])
 plot(M_zsp*yy1[Sm_bit'])
 plot!(z_vec)
+
+Yfor3D = BEAVARs.forecast(out_strct,varSetup);
+
+Yfor_low1 = percentile_mat(Yfor3D,0.05,dims=3);
+Yfor_low = percentile_mat(Yfor3D,0.16,dims=3);
+Yfor_med = median(Yfor3D,dims=3)
+Yfor_hih = percentile_mat(Yfor3D,0.84,dims=3);
+Yfor_hih1 = percentile_mat(Yfor3D,0.95,dims=3);
+
+ik = 1
+l = @layout [1:4]
+plot(Yfor_med[:,ik],w=0;ribbon=(Yfor_med[:,ik]-Yfor_low1[:,ik],Yfor_hih1[:,ik]-Yfor_med[:,ik]),fillalpha = 0.1,color=1,legend=false, layout = l)
+plot!(Yfor_med[:,ik],w=2;ribbon = (Yfor_med[:,ik]-Yfor_low[:,ik],Yfor_hih[:,ik]-Yfor_med[:,ik]),fillalpha=0.05,color=1)
