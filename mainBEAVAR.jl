@@ -1,9 +1,9 @@
 include("devPkgs.jl")
 using BEAVARs
 using TimeSeries
+using Parameters
 # using DelimitedFiles
 # using Plots
- using Parameters
 # using Statistics
 # using LinearAlgebra
 
@@ -15,14 +15,22 @@ YYlist = [:Y1; :Y2; :Y3; :Y4]
 dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',');
 YY_TA = dataM_bg_full[2:end-2,[:survIndustryBG; :ipBG; :empBG]];
 
+# out_strct, varSetup,hypSetup = 
+out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_Minn",YY_TA,n_save=2000);
 
-out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_csv",YY_TA);
+Yfor3D = BEAVARs.forecast(out_strct,varSetup)
 
-Yfor3D, hfor3D = BEAVARs.forecast(out_strct,varSetup)
 
+Yfor_low1 = percentile_mat(Yfor3D,0.05,dims=3);
+Yfor_low = percentile_mat(Yfor3D,0.16,dims=3);
 Yfor_med = median(Yfor3D,dims=3)
+Yfor_hih = percentile_mat(Yfor3D,0.84,dims=3);
+Yfor_hih1 = percentile_mat(Yfor3D,0.97,dims=3);
 
-plot(Yfor_med[:,1])
+ik = 1
+plot(Yfor_med[:,ik],w=0;ribbon=(Yfor_med[:,ik]-Yfor_low1[:,ik],Yfor_hih1[:,ik]-Yfor_med[:,ik]),fillalpha = 0.1,color=1,legend=false)
+plot!(Yfor_med[:,ik],w=2;ribbon = (Yfor_med[:,ik]-Yfor_low[:,ik],Yfor_hih[:,ik]-Yfor_med[:,ik]),fillalpha=0.05,color=1)
+
 
 # YY_tup, model_type, hyp_strct = BEAVARs.beavar2("BGR2010",YY)
 # YY_tup, model_type, hyp_strct, set_strct, store_beta, store_sigma = BEAVARs.beavar2("CPZ2024",dataHF_tab,dataLF_tab,varList,p=1,n_burn=100,n_save=100)

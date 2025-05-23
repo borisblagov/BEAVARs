@@ -23,7 +23,7 @@ export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
 export makeSetup, beavar, dispatchModel, makeOutput
 
 # Structures, to be uncommented later
-export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType, VARSetup, VAROutput
+export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType, VARSetup
 
 
 
@@ -42,7 +42,6 @@ struct CPZ2024_type <: VARModelType end
 abstract type modelSetup end
 abstract type modelOutput end
 abstract type modelHypSetup end
-abstract type functionInputs end
 
 
 # structure initializing the VAR
@@ -71,9 +70,10 @@ Outputs
     const_loc::Int  # location of the constant
 end
 
-@with_kw struct VAROutput <: modelOutput
+@with_kw struct VAROutput_Chan2020minn <: modelOutput
     store_β::Array{}      # 
     store_Σ::Array{}      # 
+    YY::Array{}             #
 end
 
 @with_kw struct VAROutput_Chan2020csv <: modelOutput
@@ -95,19 +95,6 @@ end
     z_vec::Array{} 
     Sm_bit::Array{}
 end
-
-struct CPZ2024_Inputs <: functionInputs
-    Smsp
-    Sosp
-    Sm_bit
-    longyo
-    nm
-    Xb
-    cB_b0_LI
-    sBd_ind
-    Σt_LI
-end
-
 
 function selectModel(model_str::String)
     if model_str == "Chan2020_LBA_csv"
@@ -141,7 +128,8 @@ function makeHypSetup(::CPZ2024_type)
     return hypChan2020()
 end
 
-
+# ------------------------
+# MAIN FUNCTION 
 function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
     model_type = BEAVARs.selectModel(model_str)
     
@@ -169,7 +157,7 @@ function dispatchModel(::Chan2020_LBA_Minn_type,YY_tup, hyper_str, p,n_burn,n_sa
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_Σ = Chan2020_LBA_Minn(YY,set_strct,hyper_str);
-    out_strct = VAROutput(store_β,store_Σ)
+    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
     return out_strct, set_strct
 end
 
@@ -229,7 +217,7 @@ end
     σ_h2::Float64   = 0.1;
     v_h0::Float64    = 5.0; 
     S_h0::Float64    = 0.01*(v_h0-1.0); 
-    ρ_0::Float64     = .9; 
+    ρ_0::Float64     = 0.9; 
     V_ρ::Float64     = 0.04;
     q::Float64       = 0.5;
     nu0::Int         = 3;   # degrees of freedom to add for the inverse wishart distribution of the variance-covariance matrices
@@ -643,74 +631,6 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
     
 end # end function Chan2020_LBA_csv
 
-#--------------------------------------
-#--- FORECASTING BLOCK
-#----------------
-function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
-    @unpack n_fcst,p,nsave = VARSetup
-    n = size(YY,2);
-
-    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
-    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
-    
-    
-    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
-    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
-    
-    for i_draw = 1:nsave
-    
-        hfor = @views hfor3D[:,i_draw];
-        Yfor = @views Yfor3D[:,:,i_draw];
-        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
-        ρ_draw = @view store_ρ[i_draw];
-        σ_h2_draw = @views store_σ_h2[i_draw];
-        Σ_draw = @views store_Σ[:,:,i_draw];
-                
-        for i_for = 1:n_fcst
-            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
-            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
-            tclass = [1;tclass];
-            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
-        end
-    end
-    return Yfor3D, hfor3D
-
-
-end # end function fcastChan2020_LBA_csv()
-
-function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
-    @unpack store_β, store_Σ, store_h, s2_h_store, store_ρ, store_σ_h2,eh_store, YY = VAROutput
-    @unpack n_fcst,p,nsave = VARSetup
-    n = size(YY,2);
-
-    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
-    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
-    
-    
-    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
-    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
-    
-    for i_draw = 1:nsave
-    
-        hfor = @views hfor3D[:,i_draw];
-        Yfor = @views Yfor3D[:,:,i_draw];
-        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
-        ρ_draw = @view store_ρ[i_draw];
-        σ_h2_draw = @views store_σ_h2[i_draw];
-        Σ_draw = @views store_Σ[:,:,i_draw];
-                
-        for i_for = 1:n_fcst
-            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
-            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
-            tclass = [1;tclass];
-            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
-        end
-    end
-    return Yfor3D, hfor3D
-
-
-end # end function fcastChan2020_LBA_csv()
-
 
 #----------------------------------------
 #
@@ -1010,7 +930,6 @@ function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     
     Gm = H_B*Smsp; Go = H_B*Sosp; GΣ = Gm'*Σ_invsp; Kym = GΣ*Gm; # we can initialize all these and then mutate with mul!()
     
-    # inputs_str = CPZ2024_Inputs(Smsp, Sosp, Sm_bit, longyo, nm, Xb, cB_b0_LI, strctBdraw_LI, Σt_LI)
     return YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym;
 end
 
@@ -1120,12 +1039,12 @@ end
 
 
 @doc raw"""
-    Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based Normal-Wishart prior
+    Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based independent Normal-Wishart prior
 """
 function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup)
     @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
-    nmdraws = 10;
+    nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
 
     fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList)
 
@@ -1198,9 +1117,109 @@ function CPZ_initMinn(YY,p)
 end
 
 
+
+
+#--------------------------------------
+#--- FORECASTING BLOCK
+#----------------
+function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
+    
+    
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+    
+        hfor = @views hfor3D[:,i_draw];
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        ρ_draw = @view store_ρ[i_draw];
+        σ_h2_draw = @views store_σ_h2[i_draw];
+        Σ_draw = @views store_Σ[:,:,i_draw];
+                
+        for i_for = 1:n_fcst
+            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D, hfor3D
+
+
+end # end function fcastChan2020_LBA_csv()
+
+
+function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
+    @unpack store_β, store_Σ, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        Σ_draw = @views reshape(store_Σ[:,i_draw],n,n);
+                
+        for i_for = 1:n_fcst
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D
+
+end # end function fcastChan2020minn()
+
+
+
+function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
+    @unpack store_β, store_Σ, store_h, s2_h_store, store_ρ, store_σ_h2,eh_store, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    hfor3D    = fill(NaN,(p+n_fcst,nsave)); 
+    
+    
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    hfor3D[1:p,:] = @views store_h[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+    
+        hfor = @views hfor3D[:,i_draw];
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        ρ_draw = @view store_ρ[i_draw];
+        σ_h2_draw = @views store_σ_h2[i_draw];
+        Σ_draw = @views store_Σ[:,:,i_draw];
+                
+        for i_for = 1:n_fcst
+            hfor[p+i_for,] = ρ_draw.*hfor[p+i_for-1,] + sqrt(σ_h2_draw).*randn()
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D, hfor3D
+
+
+end # end function forecast Chan2020_LBA_Minn()
+
+
+
+
 include("init_functions.jl")
 include("BGR2010.jl")
 include("irfs.jl")
+
 
 
 #-------------------------------------
