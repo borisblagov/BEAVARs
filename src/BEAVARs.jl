@@ -774,8 +774,12 @@ end
 function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-8)
     
     z_var_pos  = indexin(varNamesLF,fvarNames); # positions of the variables in z
-    T_z, n_z = size(z_tab);    # number of z vars
-    
+    if length(size(z_tab)) == 1
+        T_z = size(z_tab,1)
+        n_z = 1
+    else
+        T_z, n_z = size(z_tab);  
+    end
     M_z = zeros(T_z*n_z,nm)
     z_vec = zeros(T_z*n_z,)
     for ii_z = 1:n_z # iterator going through each variable in z_tab (along the columns)
@@ -865,13 +869,13 @@ end
 """
 function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,trans)
     varNamesLF = colnames(dataLF_tab)
-    z_tab = dataLF_tab;
+    z_tab = dataLF_tab[.!isnan.(dataLF_tab)];
     # add the z_tab as NaN values in the high-frequency tab
     fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), dataLF_tab[varNamesLF]),method=:outer)
     fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the user wants them
     fvarNames = colnames(fdataHF_tab)                # full list of the variable names
     datesHF = timestamp(fdataHF_tab)
-    datesLF = timestamp(dataLF_tab)
+    datesLF = timestamp(z_tab)
     freqL_date = Month(datesLF[2])-Month(datesLF[1])
     freqH_date = Month(datesHF[2])-Month(datesHF[1])
 
@@ -1078,7 +1082,7 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
     store_β     = zeros(n^2*p+n,nsave);
     store_Σt_inv= zeros(n,n,nsave);
 
-    for ii in 1:ndraws
+    @showprogress for ii in 1:ndraws
         # draw of the missing values
         BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
         
@@ -1230,6 +1234,7 @@ function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
     Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
     
     for i_draw = 1:nsave
+        Yfor3D[1:p,:,i_draw] .= @views store_YY[end-p+1:end,:,i_draw];
         Yfor = @views Yfor3D[:,:,i_draw];
         A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
         Σ_draw = @views inv(store_Σt_inv[:,:,i_draw]);
