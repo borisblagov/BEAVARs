@@ -8,18 +8,18 @@ using Plots
 # using LinearAlgebra
 
 
-dataNRW_full = readtimearray("data/nrw_2025_05_03.csv"; format="dd/mm/yyyy", delim=',');
-varNames = colnames(dataNRW_full)
-varList_HF = varNames[1:9];
-dataM_raw = dataNRW_full[varList_HF]
 
-dataM_tab = map((timestamp, values) -> (timestamp, log.(values)), dataM_raw[varNames[[1:4;6:9]]]);
-dataM_tab = [dataM_tab dataM_raw[:ifo]./100];
+dataM_raw = readtimearray("data/YM_de_opt.csv"; format="dd/mm/yyyy", delim=',');
+varList_HF = colnames(dataM_raw)
 
-dataQ_tab = log.(collapse(dataNRW_full[:gdpNRW], year, first))
+dataM1_tab = map((timestamp, values) -> (timestamp, log.(values)), dataM_raw[varList_HF[[1:5;7:8;10]]]);
+dataM_tab = [dataM1_tab dataM_raw[varList_HF[[6;9]]]];
+
+dataQ_raw = log.(readtimearray("data/YQ_de_opt.csv"; format="dd/mm/yyyy", delim=','))
+dataQ_tab = dataQ_raw[:ygdp]
 
 
-dataLF_tab = dataQ_tab[1:end-1];
+dataLF_tab = dataQ_tab;
 dataHF_tab = dataM_tab;
 
 # dataLF_tab = diff(dataQ_tab[1:end-1]).*100
@@ -40,3 +40,12 @@ plot(M_zsp*yy1[Sm_bit'])
 plot!(z_vec)
 
 Yfor3D = BEAVARs.forecast(out_strct,varSetup);
+include("fcast_plot.jl")
+
+
+
+
+YY = dropdims(median(out_strct.store_YY,dims=3),dims=3);
+out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_Minn",YY)
+Yfor3D = BEAVARs.forecast(out_strct,varSetup);
+include("fcast_plot.jl")

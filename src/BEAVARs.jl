@@ -94,6 +94,7 @@ end
     M_zsp::Array{} 
     z_vec::Array{} 
     Sm_bit::Array{}
+    store_Σt::Array{}        # 
 end
 
 function selectModel(model_str::String)
@@ -202,8 +203,8 @@ function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n
     varList     = YY_tup[3]
     trans       = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
     return out_strct, set_strct
 end
 
@@ -1016,8 +1017,8 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     
     Xsur_den[Xsur_CI] = X[X_CI]; 
     mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
-    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn^-1
     mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
+    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn_inv, i.e. V_Minn^-1
     K_β[:,:] .= V_Minn_inv .+ XtΣ_inv_X;
     cholK_β = cholesky(Hermitian(K_β));    
     
@@ -1038,9 +1039,11 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     # errors 
     fit = zeros(size(Y))
     ee = Y-mul!(fit,X,B_draw');
-    Σt_inv[:,:] = rand(InverseWishart(T+hypSetup.nu0,Diagonal(sigmaP)+ee'*ee))\I;
+    # Σ_t = rand(InverseWishart(T+hypSetup.nu0,Diagonal(sigmaP)+ee'*ee));
+    Σ_t = rand(InverseWishart(T+hypSetup.nu0, ee'*ee));
+    Σt_inv[:,:] = Σ_t\I;
 
-    return beta,b0,B_draw,Σt_inv,structB_draw
+    return beta,b0,B_draw,Σt_inv,structB_draw,Σ_t
 end
 
 
@@ -1081,13 +1084,14 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
     store_YY    = zeros(Tf,n,nsave);
     store_β     = zeros(n^2*p+n,nsave);
     store_Σt_inv= zeros(n,n,nsave);
+    store_Σt    = zeros(n,n,nsave);
 
     @showprogress for ii in 1:ndraws
         # draw of the missing values
         BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
         
         # draw of the parameters
-        beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
+        beta,b0,B_draw,Σt_inv,structB_draw,Σt = BEAVARs.CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
         # beta,b0,B_draw,Σt_inv,structB_draw = BEAVARs.CPZ_Minn4!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview);
 
         
@@ -1095,10 +1099,11 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
             store_β[:,ii-nburn]  = beta;
             store_YY[:,:,ii-nburn]  = YY;
             store_Σt_inv[:,:,ii-nburn]    = Σt_inv;
+            store_Σt[:,:,ii-nburn] = Σt;
         end
     end
 
-    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit
+    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt
 end
 
 
@@ -1222,6 +1227,7 @@ function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
 end # end function forecast Chan2020_LBA_Minn()
 
 
+# FORECAST FOR CPZ
 function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
     @unpack store_β, store_Σt_inv, store_YY = VAROutput
     @unpack n_fcst,p,nsave = VARSetup
