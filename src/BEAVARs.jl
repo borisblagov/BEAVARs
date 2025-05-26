@@ -238,7 +238,7 @@ function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
 
     Yt = vec(Y')
 
-    (deltaP, sigmaP, mu_prior) = trainPriors(YY,4);
+    (deltaP, sigmaP, mu_prior) = trainPriors(YY,p);
 
     (idx_kappa1,idx_kappa2, V_Minn, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
     k = n*p+1;
@@ -870,9 +870,10 @@ end
 """
 function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,trans)
     varNamesLF = colnames(dataLF_tab)
-    z_tab = dataLF_tab[.!isnan.(dataLF_tab)];
+    # z_tab = dataLF_tab[.!isnan.(dataLF_tab)];
+    z_tab = dataLF_tab;
     # add the z_tab as NaN values in the high-frequency tab
-    fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), dataLF_tab[varNamesLF]),method=:outer)
+    fdataHF_tab = merge(dataHF_tab,map((timestamp, values) -> (timestamp, values.*NaN), z_tab[varNamesLF]),method=:outer)
     fdataHF_tab = fdataHF_tab[varOrder]              # ordering the variables as the user wants them
     fvarNames = colnames(fdataHF_tab)                # full list of the variable names
     datesHF = timestamp(fdataHF_tab)
@@ -1016,7 +1017,7 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
    
     
     Xsur_den[Xsur_CI] = X[X_CI]; 
-    mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);
+    mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);                 # X' ( I(T) ⊗ Σ-1 )
     mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);
     V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn_inv, i.e. V_Minn^-1
     K_β[:,:] .= V_Minn_inv .+ XtΣ_inv_X;
@@ -1040,7 +1041,7 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     fit = zeros(size(Y))
     ee = Y-mul!(fit,X,B_draw');
     # Σ_t = rand(InverseWishart(T+hypSetup.nu0,Diagonal(sigmaP)+ee'*ee));
-    Σ_t = rand(InverseWishart(T+hypSetup.nu0, ee'*ee));
+    Σ_t = rand(InverseWishart(T+hypSetup.nu0+n, ee'*ee));
     Σt_inv[:,:] = Σ_t\I;
 
     return beta,b0,B_draw,Σt_inv,structB_draw,Σ_t
