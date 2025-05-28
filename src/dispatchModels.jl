@@ -28,7 +28,7 @@ function dispatchModel(::Chan2020iniw_type,YY_tup, hyper_str, p,n_burn,n_save,n_
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_Σ = Chan2020iniw(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
+    out_strct = VAROutput_Chan2020iniw(store_β,store_Σ,YY)
     return out_strct, set_strct
 end
 
@@ -44,7 +44,7 @@ function dispatchModel(::Chan2020iniw_type2,YY_tup, hyper_str, p,n_burn,n_save,n
     end
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_β, store_Σ = Chan2020iniw(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
+    out_strct = VAROutput_Chan2020iniw(store_β,store_Σ,YY)
     return out_strct, set_strct
 end
 

@@ -43,7 +43,7 @@ n_save = 10;
 n_burn = 10;
 model_str = "CPZ2024";
 
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=200,n_save=100);
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=100,n_save=10);
 
 # hyperparameter setup
 hyper_str=hypChan2020()

@@ -78,6 +78,13 @@ end
     YY::Array{}             #
 end
 
+
+@with_kw struct VAROutput_Chan2020iniw <: modelOutput
+    store_β::Array{}      # 
+    store_Σ::Array{}      # 
+    YY::Array{}           #
+end
+
 @with_kw struct VAROutput_Chan2020csv <: modelOutput
     store_β::Array{}        # 
     store_Σ::Array{}        # 
@@ -956,14 +963,13 @@ end
 @doc raw"""
     Updates parameters using an independennt Normal-Wishart prior
 """
-function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,upd_these_vec,K_β,beta)
+function CPZ_Minn2!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,upd_these_vec,K_β,beta)
     Y, X = mlagL!(YY,Y,X,p,n)
     (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,upd_these_vec);
 
     (idx_kappa1,idx_kappa2, V_Minn_vec, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
     V_Minn_vec_inv = 1.0./V_Minn_vec;
     Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];
-   
     
     Xsur_den[Xsur_CI] = X[X_CI]; 
     mul!(XtΣ_inv_den,Xsur_den',Σp_invsp);                 # X' ( I(T) ⊗ Σ-1 )
@@ -994,6 +1000,36 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     Σt_inv[:,:] = Σ_t\I;
 
     return beta,b0,B_draw,Σt_inv,structB_draw,Σ_t
+end
+
+
+
+
+@doc raw"""
+    Updates parameters using an independennt Normal-Wishart prior
+"""
+function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,intercept,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,upd_these_vec,K_β,beta)
+    Y, X = mlagL!(YY,Y,X,p,n)
+    (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,upd_these_vec);
+    S_0 = Diagonal(sigmaP);
+    (idx_kappa1,idx_kappa2, V_Minn_vec, beta_Minn) = prior_Minn(n,p,sigmaP,hypSetup);
+    V_Minn_vec_inv = 1.0./V_Minn_vec;
+    Σp_invsp.nzval[:] = Σt_inv[Σpt_ind];    
+    Xsur_den[Xsur_CI] = X[X_CI]; 
+    V_Minn_inv_elview[:] = V_Minn_vec_inv;  # update the diagonal of V_Minn_inv, i.e. V_Minn^-1
+
+    beta = BEAVARs.Chan2020_drawβ(Σp_invsp,Xsur_den,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,beta_Minn,K_β,Y,n,k);
+    
+
+    B_draw[:,:] = reshape(beta,k,n)'
+    b0[:] = B_draw[:,1]
+    structB_draw[:,n+1:end] = B_draw[:,2:end]
+
+
+    # errors 
+    Σt, Σt_inv = Chan2020_drawΣt(Y,Xsur_den,beta,n,T,S_0,hypSetup.nu0);
+
+    return beta,b0,B_draw,Σt_inv,structB_draw,Σt
 end
 
 
@@ -1142,6 +1178,36 @@ function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
 end # end function fcastChan2020minn()
 
 
+function forecast(VAROutput::VAROutput_Chan2020iniw,VARSetup)
+    @unpack store_β, store_Σ, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    @unpack store_β, store_Σ, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        Σ_draw = @views store_Σ[:,:,i_draw];
+        # Σ_draw =  dropdims(median(store_Σ,dims=3),dims=3);
+                
+        for i_for = 1:n_fcst
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (cholesky(Hermitian(Σ_draw)).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D
+
+
+end # end function forecast Chan2020minn()
+
+
 
 function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
     @unpack store_β, store_Σ, store_h, s2_h_store, store_ρ, store_σ_h2,eh_store, YY = VAROutput
@@ -1171,7 +1237,7 @@ function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
             Yfor[p+i_for,:]=tclass'*A_draw  .+ (exp.(hfor[p+i_for,]./2.0)*cholesky(Σ_draw).U*randn(n,1))';    
         end
     end
-    return Yfor3D, hfor3D
+    return Yfor3D
 
 
 end # end function forecast Chan2020minn()
@@ -1179,7 +1245,7 @@ end # end function forecast Chan2020minn()
 
 # FORECAST FOR CPZ
 function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
-    @unpack store_β, store_Σt_inv, store_YY = VAROutput
+    @unpack store_β, store_Σt, store_YY = VAROutput
     @unpack n_fcst,p,nsave = VARSetup
 
     YY = median(store_YY,dims=3)
@@ -1190,10 +1256,11 @@ function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
     Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
     
     for i_draw = 1:nsave
-        Yfor3D[1:p,:,i_draw] .= @views store_YY[end-p+1:end,:,i_draw];
+        # Yfor3D[1:p,:,i_draw] .= @views store_YY[end-p+1:end,:,i_draw];
+        Yfor3D[1:p,:,i_draw] .= @views YY[end-p+1:end,:];
         Yfor = @views Yfor3D[:,:,i_draw];
         A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
-        Σ_draw = @views inv(store_Σt_inv[:,:,i_draw]);
+        Σ_draw = @views store_Σt[:,:,i_draw];
                 
         for i_for = 1:n_fcst
             tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')

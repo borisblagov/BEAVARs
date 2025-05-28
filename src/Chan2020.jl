@@ -58,8 +58,8 @@ function Chan2020iniw2(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     store_β = zeros(n^2*p+n,nsave);
     store_Σt = zeros(n,n,nsave);
     for ii = 1:ndraws 
-        beta = BEAVARs.Chan2020_drawβ(Σ_invsp,Xsur_den,XtΣ_inv_den,XtΣ_inv_X,Vβminn_inv,K_β,Y);
-        Σt, Σt_inv = Chan2020_drawΣt(Y,Xsur_den,beta);
+        beta = BEAVARs.Chan2020_drawβ(Σ_invsp,Xsur_den,XtΣ_inv_den,XtΣ_inv_X,Vβminn_inv,βminn,K_β,Y,n,k);
+        Σt, Σt_inv = Chan2020_drawΣt(Y,Xsur_den,beta,n,T,S_0,hypSetup.nu0);
 
         Σ_invsp.nzval[:] = Σt_inv[Σt_LI];               # update ( I(T) ⊗ Σ^{-1} )
 
@@ -75,7 +75,7 @@ end
 """
     
 """
-function Chan2020_drawβ(Σ_invsp,Xsur_den,XtΣ_inv_den,XtΣ_inv_X,Vβminn_inv,K_β,Y)
+function Chan2020_drawβ(Σ_invsp,Xsur_den,XtΣ_inv_den,XtΣ_inv_X,Vβminn_inv,βminn,K_β,Y,n,k)
         mul!(XtΣ_inv_den,Xsur_den',Σ_invsp);            #  X'*( I(T) ⊗ Σ^{-1} )
         mul!(XtΣ_inv_X,XtΣ_inv_den,Xsur_den);           #  X'*( I(T) ⊗ Σ^{-1} )*X
         K_β[:,:] .= Vβminn_inv .+ XtΣ_inv_X;            #  K_β = V^{-1} + X'*( I(T) ⊗ Σ^{-1} )*X
@@ -89,9 +89,9 @@ end
 
 """
 """
-function Chan2020_drawΣt(Y,Xsur_den,beta)
+function Chan2020_drawΣt(Y,Xsur_den,beta,n,T,S_0,nu0)
     U = reshape(vec(Y') - Xsur_den*beta,n,T);       
-    Σt = rand(InverseWishart(hypSetup.nu0+n+T,S_0+U*U'));    # draw for Σ
+    Σt = rand(InverseWishart(nu0+n+T,S_0+U*U'));    # draw for Σ
     Σt_inv = Σt\I;
     return Σt, Σt_inv
 end

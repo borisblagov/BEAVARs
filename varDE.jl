@@ -29,6 +29,7 @@ varList   = [colnames(dataLF_tab); colnames(dataHF_tab)];
 
 trans = 1
 out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=50,n_save=50);
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=1000,n_save=1000);
 
 @unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
 
@@ -46,6 +47,7 @@ include("fcast_plot.jl")
 
 
 YY = dropdims(median(out_strct.store_YY,dims=3),dims=3);
-out_strct, varSetup,hypSetup = beavar("Chan2020minn",YY)
-Yfor3D = BEAVARs.forecast(out_strct,varSetup);
+hyp_test = hypChan2020(c1=0.1);
+@time out_strct2, varSetup,hypSetup = beavar("Chan2020csv",YY,hyp=hyp_test)
+Yfor3D = BEAVARs.forecast(out_strct2,varSetup);
 include("fcast_plot.jl")
