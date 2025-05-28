@@ -110,14 +110,6 @@ end
 
 
 @doc raw"""
-    trainPriors(Z0::Matrix{Float64},p::Int64)
-
-Independent AR(p) regressions with constant to estimate prior values for further Bayesian estimation
-
-For a training sample `Z0` with `n` variables and `p` lags the function will do column-wise
-`n` linear regressions of order p and return a matrix 
-
-deltaP has the constant on the bottom and the lags (1) to (p) in rows [1:end-1,:]
 
 """
 function updatePriors!(Y,X,n::Int,mu_prior,deltaP,sigmaP,intercept)
@@ -145,7 +137,36 @@ end
 
 
 
+function ar1(YY::Matrix{Float64},sig::Vector{Float64})
+    n = size(YY,2);
+    T_y = size(YY,1)-1;
+    x1 = ones(T_y,2);
+    for ii = 1:n
+        y = @view YY[2:end,ii];
+        x1[:,2] = @view YY[1:end-1,ii];
+        bet = x1\y;
+        res = y-x1*bet;
+        sig[ii] = dot(res',res)/T_y     # Chan2020 divides by T. Standard forumulas divide by T-p pr T-1
+    end
+    return sig
+end
 
+function ar4!(YY::Matrix{Float64},sig::Vector{Float64})
+    n = size(YY,2);
+    T_y = size(YY,1)-4;
+    x4 = ones(T_y,5);
+    for ii = 1:n
+        y = @view YY[5:end,ii];
+        x4[:,5] = @view YY[1:end-4,ii];
+        x4[:,4] = @view YY[2:end-3,ii];
+        x4[:,3] = @view YY[3:end-2,ii];
+        x4[:,2] = @view YY[4:end-1,ii];
+        bet = x4\y;
+        res = y-x4*bet;
+        sig[ii] = dot(res',res)/T_y     # Note that T_y is T-4 where T is lenght(YY)
+    end
+    return sig
+end
 
 
 """

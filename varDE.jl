@@ -46,6 +46,6 @@ include("fcast_plot.jl")
 
 
 YY = dropdims(median(out_strct.store_YY,dims=3),dims=3);
-out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_Minn",YY)
+out_strct, varSetup,hypSetup = beavar("Chan2020minn",YY)
 Yfor3D = BEAVARs.forecast(out_strct,varSetup);
 include("fcast_plot.jl")

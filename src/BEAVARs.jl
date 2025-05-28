@@ -17,13 +17,13 @@ export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta
 export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
-export prior_Minn, Chan2020_LBA_Minn, draw_h_csv!, Chan2020_LBA_csv, prior_NonConj, draw_h_csv_opt!
-export hypChan2020, Chan2020_LBA_csv_keywords, fcastChan2020_LBA_csv
+export prior_Minn, Chan2020minn, draw_h_csv!, Chan2020csv, prior_NonConj, draw_h_csv_opt!
+export hypChan2020, Chan2020csv_keywords, fcastChan2020csv
 
 export makeSetup, beavar, dispatchModel, makeOutput
 
 # Structures, to be uncommented later
-export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, modelHypSetup, hypDefault_strct, outChan2020_LBA_csv, VARModelType, VARSetup
+export modelSetup, modelOutput, Chan2020csv_type, Chan2020minn_type, modelHypSetup, hypDefault_strct, outChan2020csv, VARModelType, VARSetup
 
 
 
@@ -32,8 +32,10 @@ export modelSetup, modelOutput, Chan2020_LBA_csv_type, Chan2020_LBA_Minn_type, m
 
 # types for models
 abstract type VARModelType end
-struct Chan2020_LBA_Minn_type <: VARModelType end
-struct Chan2020_LBA_csv_type <: VARModelType end
+struct Chan2020minn_type <: VARModelType end
+struct Chan2020iniw_type <: VARModelType end
+struct Chan2020iniw_type2 <: VARModelType end
+struct Chan2020csv_type <: VARModelType end
 struct BGR2010_type <: VARModelType end
 struct CPZ2024_type <: VARModelType end
 
@@ -98,16 +100,20 @@ end
 end
 
 function selectModel(model_str::String)
-    if model_str == "Chan2020_LBA_csv"
-        model_type = Chan2020_LBA_csv_type()
-    elseif model_str == "Chan2020_LBA_Minn"
-        model_type = Chan2020_LBA_Minn_type()
+    if model_str == "Chan2020csv"
+        model_type = Chan2020csv_type()
+    elseif model_str == "Chan2020minn"
+        model_type = Chan2020minn_type()
+    elseif model_str == "Chan2020iniw"
+        model_type = Chan2020iniw_type()
+    elseif model_str == "Chan2020iniw2"
+        model_type = Chan2020iniw_type2()
     elseif model_str == "BGR2010"
         model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
         model_type = CPZ2024_type()
     else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020_LBA_Minn\n    Chan2020_LBA_csv\n")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n")
     end
     return model_type
 end
@@ -116,10 +122,16 @@ end
 # empty structure for initialising the model
 struct hypDefault_strct <: modelHypSetup end
 
-function makeHypSetup(::Chan2020_LBA_csv_type)
+function makeHypSetup(::Chan2020csv_type)
     return hypChan2020()
 end
-function makeHypSetup(::Chan2020_LBA_Minn_type)
+function makeHypSetup(::Chan2020minn_type)
+    return hypChan2020()
+end
+function makeHypSetup(::Chan2020iniw_type)
+    return hypChan2020()
+end
+function makeHypSetup(::Chan2020iniw_type2)
     return hypChan2020()
 end
 function makeHypSetup(::BGR2010_type)
@@ -145,69 +157,6 @@ function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=100
     return out_strct, set_strct, hyp_strct
 end
 
-
-function dispatchModel(::Chan2020_LBA_Minn_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello Minn")
-    intercept = 1;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_Σ = Chan2020_LBA_Minn(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
-    return out_strct, set_strct
-end
-
-
-function dispatchModel(::Chan2020_LBA_csv_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello csv")
-    intercept = 1;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store = Chan2020_LBA_csv(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, eh_store,YY)
-    return out_strct, set_strct
-end
-
-function dispatchModel(::BGR2010_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello BGR2010")
-    intercept = 0;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_Σ = BGR2010(YY,set_strct,hyper_str);
-    out_strct = VAROutput(store_β,store_Σ)
-    return out_strct, set_strct
-end
-
-function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello CPZ2024")
-    intercept = 1;
-    dataHF_tab  = YY_tup[1]
-    dataLF_tab  = YY_tup[2]
-    varList     = YY_tup[3]
-    trans       = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
-end
-
 #----------------------------------------
 # Chan 2020 LBA functions
 
@@ -227,12 +176,12 @@ end
 
 
 @doc raw"""
-# Chan2020_LBA_Minn(YY,VARSetup,hypSetup)
+# Chan2020minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
 """
-function Chan2020_LBA_Minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
     @unpack p,nburn,nsave = VARSetup
     Y, X, T, n = mlagL(YY,p)
 
@@ -542,12 +491,12 @@ end
 
 
 @doc raw"""
-# Chan2020_LBA_csv(YY,VARSetup,hypSetup)
+# Chan2020csv(YY,VARSetup,hypSetup)
 
 Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
 
 """
-function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
 
@@ -631,7 +580,7 @@ function Chan2020_LBA_csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::mode
 
     return store_β, store_h, store_Σ, store_s2_h, ρ_store, σ_h2_store, eh_store
     
-end # end function Chan2020_LBA_csv
+end # end function Chan2020csv
 
 
 #----------------------------------------
@@ -932,8 +881,8 @@ function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     # Initialize matrices
     H_Bsp, strctBdraw_LI = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
     H_B, H_B_CI, strB2HB_ind = BEAVARs.makeBlkDiag_ns(Tfn,n,p, -structB_draw);
-    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
-    Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);
+    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);                       # this is ( I(Tf*n) ⊗ Σ-1 )
+    Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);                # this is ( I(T*n) ⊗ Σ-1 ), the difference is that this includes the 0,-1,...,-p lags
     cB_b0_LI = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_LI]
     Xb = sparse(Matrix(1.0I, Tfn, Tfn))
     cB = repeat(b0,Tf);
@@ -1023,8 +972,8 @@ function CPZ_Minn!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σ
     K_β[:,:] .= V_Minn_inv .+ XtΣ_inv_X;
     cholK_β = cholesky(Hermitian(K_β));    
     
-    prior_mean = V_Minn_vec_inv.*beta_Minn;                   # V^-1_Minn * beta_Minn 
-    mul!(prior_mean,XtΣ_inv_den,  vec(Y),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
+    prior_mean = V_Minn_vec_inv.*beta_Minn;               #  V^-1_Minn * beta_Minn 
+    mul!(prior_mean,XtΣ_inv_den,  vec(Y'),1.0,1.0);        # (V^-1_Minn * beta_Minn) + X' ( I(T) ⊗ Σ-1 ) y
 
 
     beta_hat = ldiv!(cholK_β.U,ldiv!(cholK_β.L,prior_mean));
@@ -1136,7 +1085,7 @@ end
 #--------------------------------------
 #--- FORECASTING BLOCK
 #----------------
-function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
+function fcastChan2020csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ, store_σ_h2)
     @unpack n_fcst,p,nsave = VARSetup
     n = size(YY,2);
 
@@ -1166,7 +1115,7 @@ function fcastChan2020_LBA_csv(YY,VARSetup, store_β, store_h,store_Σ, store_ρ
     return Yfor3D, hfor3D
 
 
-end # end function fcastChan2020_LBA_csv()
+end # end function fcastChan2020csv()
 
 
 function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
@@ -1225,7 +1174,7 @@ function forecast(VAROutput::VAROutput_Chan2020csv,VARSetup)
     return Yfor3D, hfor3D
 
 
-end # end function forecast Chan2020_LBA_Minn()
+end # end function forecast Chan2020minn()
 
 
 # FORECAST FOR CPZ
@@ -1260,6 +1209,8 @@ end # end function fcastCPZ2024()
 include("init_functions.jl")
 include("BGR2010.jl")
 include("irfs.jl")
+include("Chan2020.jl")
+include("dispatchModels.jl")
 
 
 

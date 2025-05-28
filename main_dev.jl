@@ -21,8 +21,8 @@ YY = values(data_de);
 
 # YY20 = readdlm("data/FRED_Chan2020_LBA.txt", ',');
 # YY = YY20[:,[1,4,5,6]]
-setup_str, hyper_str = makeSetup(YY,"Chan2020_LBA_csv",nburn=12000,nsave=5000,n_fcst=200)
-store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store, XX = Chan2020_LBA_csv(YY,setup_str,hyper_str);
+setup_str, hyper_str = makeSetup(YY,"Chan2020csv",nburn=12000,nsave=5000,n_fcst=200)
+store_beta, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, eh_store, XX = Chan2020csv(YY,setup_str,hyper_str);
 
 # Using Impulse responses
 IRF_median, IRF_68_low, IRF_68_high = irf_chol_overDraws_csv(store_beta,store_Σ,store_h,setup_str);
