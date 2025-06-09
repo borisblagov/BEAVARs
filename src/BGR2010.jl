@@ -1,6 +1,9 @@
 #-----------------------------------------------
 # Banbura et al. 2010 LBA functions
 
+function makeHypSetup(::BGR2010_type)
+    return hypBGR2010()
+end
 
 @with_kw struct hypBGR2010 <: modelHypSetup
     lambda::Float64     = 0.1; # hyperparameter shrinkage between AR(1) and OLS
@@ -170,3 +173,54 @@ function BGR2010(Z::Matrix{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup
 
     return store_beta, store_sigma;
 end
+
+
+function dispatchModel(::BGR2010_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
+    println("Hello BGR2010")
+    intercept = 0;
+    if isa(YY_tup[1],Array{})
+        YY = YY_tup[1];
+    elseif isa(YY_tup[1],TimeArray{})
+        YY_TA = YY_tup[1];
+        YY = values(YY_TA)
+        varList = colnames(YY_TA)
+    end
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_β, store_Σ = BGR2010(YY,set_strct,hyper_str);
+    out_strct = VAROutput_BGR2010(store_β,store_Σ,YY)
+    return out_strct, set_strct
+end
+
+
+# types for output export
+@with_kw struct VAROutput_BGR2010 <: modelOutput
+    store_β::Array{}      # 
+    store_Σ::Array{}      # 
+    YY::Array{}             #
+end
+
+
+
+function forecast(VAROutput::VAROutput_BGR2010,VARSetup)
+    @unpack store_β, store_Σ, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        Σ_draw = @views reshape(store_Σ[:,i_draw],n,n);
+                
+        for i_for = 1:n_fcst
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+    return Yfor3D
+
+end # end function fcastChan2020minn()
+

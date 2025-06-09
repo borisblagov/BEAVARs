@@ -12,18 +12,19 @@ YY = rand(35,4);
 YYlist = [:Y1; :Y2; :Y3; :Y4]
 
 
-dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',');
-YY_TA = dataM_bg_full[2:end-2,[:survIndustryBG; :ipBG; :empBG]];
-
 # out_strct, varSetup,hypSetup = 
-out_strct, varSetup,hypSetup = beavar("Chan2020_LBA_Minn",YY_TA,n_save=2000);
+out_strct, varSetup,hypSetup = beavar("Chan2020minn",YY,n_save=10,n_burn=10);
+out_strct, varSetup,hypSetup = beavar("Chan2020iniw",YY,n_save=10,n_burn=10);
+out_strct, varSetup,hypSetup = beavar("Chan2020csv",YY,n_save=10,n_burn=10);
+out_strct2, varSetup2,hypSetup2 = beavar("Chan2020csv",YY,n_save=10,n_burn=10);
+out_strct2, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=1000,n_burn=5000);
 
-Yfor3D = BEAVARs.forecast(out_strct,varSetup)
+Yfor3D = BEAVARs.forecast(out_strct2,varSetup2)
 
 
 Yfor_low1 = percentile_mat(Yfor3D,0.05,dims=3);
 Yfor_low = percentile_mat(Yfor3D,0.16,dims=3);
-Yfor_med = median(Yfor3D,dims=3)
+Yfor_med = percentile_mat(Yfor3D,0.5,dims=3)
 Yfor_hih = percentile_mat(Yfor3D,0.84,dims=3);
 Yfor_hih1 = percentile_mat(Yfor3D,0.97,dims=3);
 
@@ -31,22 +32,7 @@ ik = 1
 plot(Yfor_med[:,ik],w=0;ribbon=(Yfor_med[:,ik]-Yfor_low1[:,ik],Yfor_hih1[:,ik]-Yfor_med[:,ik]),fillalpha = 0.1,color=1,legend=false)
 plot!(Yfor_med[:,ik],w=2;ribbon = (Yfor_med[:,ik]-Yfor_low[:,ik],Yfor_hih[:,ik]-Yfor_med[:,ik]),fillalpha=0.05,color=1)
 
-
-# YY_tup, model_type, hyp_strct = BEAVARs.beavar2("BGR2010",YY)
-# YY_tup, model_type, hyp_strct, set_strct, store_beta, store_sigma = BEAVARs.beavar2("CPZ2024",dataHF_tab,dataLF_tab,varList,p=1,n_burn=100,n_save=100)
-
-# VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_csv",p=1,nburn=100,nsave=500);
-# VAR_str, Hyp_str = beavar(YY,"Chan2020_LBA_Minn",p=1,nburn=100,nsave=500);
-
-
-# hyp_mine = hypBGR2010(lambda=0.5)
-# VAR_str, Hyp_str = beavar(YY,"BGR2010",p=1,nburn=100,nsave=500,hyp=hyp_mine);
-
-
-
 dataM_bg_full = readtimearray("data/bg_julL.csv"; format="dd/mm/yyyy", delim=',');
-
-
 dataQ_bg_full = readtimearray("data/dataQ_BG.csv"; format="dd/mm/yyyy", delim=',')
 varNamesM_full = colnames(dataM_bg_full)
 
