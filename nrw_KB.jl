@@ -28,8 +28,8 @@ dataHF_tab = dataM_tab;
 varList   = [colnames(dataLF_tab); colnames(dataHF_tab)];
 
 trans = 1
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=5,n_save=5);
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=5000,n_save=5000);
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=5,n_save=5,p=5);
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,trans,n_burn=5000,n_save=5000,p=5);
 
 @unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
 
@@ -42,6 +42,6 @@ plot!(z_vec)
 
 Yfor3D = BEAVARs.forecast(out_strct,varSetup);
 
-dropdims(median(out_strct.store_Σt,dims=3),dims=3)
+fc = dropdims(median(out_strct.store_YY,dims=3),dims=3)
 
 include("fcast_plot.jl")

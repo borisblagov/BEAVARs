@@ -5,7 +5,8 @@ using   Revise,
         SparseArrays,
         TimeSeries, 
         Parameters,
-        ProgressMeter
+        ProgressMeter,
+        XLSX
 
 # from init_functions.jl
 export mlag, mlagL, mlagL!, ols, percentile_mat
@@ -42,6 +43,7 @@ struct Chan2020iniw_type2 <: VARModelType end
 struct Chan2020csv_type <: VARModelType end
 struct BGR2010_type <: VARModelType end
 struct CPZ2024_type <: VARModelType end
+struct Blagov2025_type <: VARModelType end
 struct hypDefault_strct <: modelHypSetup end    # empty structure for initialising the hyperparameters
 
 
@@ -58,6 +60,8 @@ function selectModel(model_str::String)
         model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
         model_type = CPZ2024_type()
+    elseif model_str == "Blagov2025"
+        model_type = Blagov2025_type()
     else
         error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n    Chan2020iniw2\n")
     end
@@ -109,7 +113,7 @@ function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=100
 end
 
 
-
+include("dataPrep.jl")
 include("init_functions.jl")
 include("BGR2010.jl")
 include("irfs.jl")
@@ -118,6 +122,7 @@ include("Chan2020minn.jl")
 include("Chan2020iniw.jl")
 include("Chan2020csv.jl")
 include("CPZ2024.jl")
+include("Blagov2025.jl")
 include("dispatchModels.jl")
 
 
