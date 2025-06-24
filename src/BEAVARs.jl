@@ -113,6 +113,21 @@ function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=100
 end
 
 
+function beavar_debug(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+    model_type = BEAVARs.selectModel(model_str)
+    
+    # checking if user supplied the hyperparameter structure
+    if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
+        hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
+    else                                            # else use supplied    
+        hyp_strct = hyp; # println("using the supplied parameters")
+    end
+        
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,1)
+    return set_strct, hyp_strct
+end
+
+
 include("dataPrep.jl")
 include("init_functions.jl")
 include("BGR2010.jl")
@@ -123,7 +138,6 @@ include("Chan2020iniw.jl")
 include("Chan2020csv.jl")
 include("CPZ2024.jl")
 include("Blagov2025.jl")
-include("dispatchModels.jl")
 
 
 

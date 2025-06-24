@@ -73,7 +73,7 @@ function Chan2020csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypS
         S_hat = (S_hat+S_hat')/2;
     
         Σ = rand(InverseWishart(v_0+T,S_hat));
-        cholΣ  = cholesky(Σ).U; # if we get the upper we don't need constant transpose
+        cholΣ  = cholesky(Σ).U; # if we get the upper we don't need constantly to transpose
         A = A_hat + (cholesky(Hermitian(K_A)).U\randn(np1,n))*cholΣ;
     
         # Errors
