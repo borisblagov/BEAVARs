@@ -8,16 +8,32 @@ using Plots
 # using LinearAlgebra
 
 
-YY = rand(35,4);
-YYlist = [:Y1; :Y2; :Y3; :Y4]
+# YY = rand(35,4);
+# YYlist = [:Y1; :Y2; :Y3; :Y4]
 
 
-# out_strct, varSetup,hypSetup = 
-out_strct, varSetup,hypSetup = beavar("Chan2020minn",YY,n_save=10,n_burn=10);
-out_strct, varSetup,hypSetup = beavar("Chan2020iniw",YY,n_save=10,n_burn=10);
-out_strct, varSetup,hypSetup = beavar("Chan2020csv",YY,n_save=10,n_burn=10);
-out_strct2, varSetup2,hypSetup2 = beavar("Chan2020csv",YY,n_save=10,n_burn=10);
-out_strct2, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=1000,n_burn=5000);
+
+data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
+
+YYlist = [:tpuCaldara, :pmiDE, :gdpDE, :invDE, :hicpDE, :euribor];
+data_de = data_ta_full[YYlist];
+var_names = colnames(data_de)
+YY = values(data_de);
+
+
+nsave = 100; nburn = 100;
+out_strct_minn, varSetup,hypSetup = beavar("Chan2020minn",YY,n_save=nsave,n_burn=nburn);
+out_strct_iniw, varSetup,hypSetup = beavar("Chan2020iniw",YY,n_save=nsave,n_burn=nburn);
+out_strct_csv2, varSetup,hypSetup = beavar("Chan2020csv2",YY,n_save=nsave,n_burn=nburn);
+out_strct_csv, varSetup,hypSetup = beavar("Chan2020csv",YY,n_save=nsave,n_burn=nburn);
+out_strct_bgr, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=nsave,n_burn=nburn);
+
+
+var = 2
+Yfit, Yact = BEAVARs.modelFit(out_strct_minn,varSetup);
+plot([Yfit[:,var],Yact[:,var]]*100)
+Yfit, Yact = BEAVARs.modelFit(out_strct_csv2,varSetup);
+plot([Yfit[:,var],Yact[:,var]]*100)
 
 Yfor3D = BEAVARs.forecast(out_strct2,varSetup2)
 

@@ -32,7 +32,7 @@ end
 
 """
     mlagL(Yfull::Matrix{Float64},p::Integer)
-    Creates lags of a matrix for a VAR representation with a constant on the left
+    Creates lags of a matrix for a VAR representation with a constant in X on the left and for Y= X*B, the constant is on the transpose
         Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
 """
 function mlagL(Yfull::Matrix{Float64},p::Integer)
@@ -214,3 +214,13 @@ function initParamMatrices(n::Int,p::Int,intercept::Int)
     return B_draw, structB_draw, Σt_inv, b0
 end
 
+
+
+function modelFit(out_strct,varSetup)
+    @unpack p = varSetup;
+    Y,X,T,n = BEAVARs.mlagL(out_strct.YY,p);
+    Amed = reshape(percentile_mat(out_strct.store_β,0.5,dims=2),n*p+1,n)
+    Yfit = X*Amed;
+    Yact = @views Y
+    return Yfit, Yact
+end

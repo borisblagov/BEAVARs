@@ -3,13 +3,6 @@ function makeHypSetup(::Blagov2025_type)
 end
 
 
-@doc raw"""
-    Updates parameters using an independennt Normal-Wishart prior
-"""
-function CPZcsv!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Y,X,T,beta,h,dg_ind_Ωinv)
- 
-end
-
 
 
 
@@ -44,8 +37,11 @@ function Blagov2025(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
     
     # Initialize matrices for updating the parameter draws from CPZ_iniv  
     # ------------------------------------
-    Y, X, T, k, sigmaP, S_0, Σ, A_0, V_Ainv, v_0, H_ρ,h,eh,Ωinv, dg_ind_Ωinv, VAinvDA0, AVAinvA   = BEAVARs.Blagov2025_initcsv(YY,p,hypSetup);
+    Y, X, T, k, sigmaP, S_0, Σ, A_0, V_Ainv, v_0, H_ρ,h,eh,Ωinv, dg_ind_Ωinv, VAinvDA0, AVAinvA, intercept   = BEAVARs.Blagov2025_initcsv(YY,p,hypSetup);
     
+    (deltaP, sigmaP, mu_prior)  = trainPriors(YY,p);                         # do OLS to initialize priors
+    # for updating the priors
+    updP_vec = sum(Sm_bit,dims=2).>size(Sm_bit,2)*0.25;
 
     # prepare matrices for storage
        
@@ -67,6 +63,7 @@ function Blagov2025(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
         h = BEAVARs.Chan2020_draw_h!(h,s2_h,ρ,σ_h2,n,H_ρ,T);
         ρ, σ_h2, eh = BEAVARs.Chan2020_draw_ρ!(ρ,h,eh,v_h0,S_h0,ρ_0,V_ρ,T);
         
+        
         Σt_inv = inv(Σ) 
         B_draw[:,:] = A';
         b0[:] = B_draw[:,1];
@@ -76,6 +73,15 @@ function Blagov2025(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
         Σ_invsp         = BEAVARs.Blagov2025_updCPZcsv!(Σ_invsp,p,n,Tf,Ωinv);
         YYt             = BEAVARs.Blagov2025_draw_wz!(YYt,longyo,cB,Σ_invsp,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym);
 
+        # update priors
+        (deltaP, sigmaP, mu_prior) = BEAVARs.updatePriors3!(Y,X,n,mu_prior,deltaP,sigmaP,intercept,updP_vec);
+        S_0                         = Diagonal(sigmaP);       
+        (idx_kappa1,idx_kappa2, Vβ_Minn, β_Minn) = prior_NonConj(n,p,sigmaP,hypSetup);
+        A_0     = reshape(β_Minn,k,n);
+        V_Ainv  = sparse(1:k,1:k,1.0./Vβ_Minn);
+        VAinvDA0 = V_Ainv\A_0;
+        AVAinvA = A_0'*V_Ainv*A_0;   # this will not change unless we update the prior
+    
         if ii>nburn
             store_YY[:,:,ii-nburn]  = YY;
             store_Σt_inv[:,:,ii-nburn]    = Σt_inv;
@@ -157,7 +163,7 @@ function Blagov2025_initcsv(YY,p,hypSetup)
     Ωinv    = sparse(1:T,1:T,exp.(-h));
     dg_ind_Ωinv = diagind(Ωinv);
 
-    return Y, X, T, k, sigmaP, S_0, Σ, A_0, V_Ainv, v_0, H_ρ,h,eh,Ωinv, dg_ind_Ωinv, VAinvDA0, AVAinvA
+    return Y, X, T, k, sigmaP, S_0, Σ, A_0, V_Ainv, v_0, H_ρ,h,eh,Ωinv, dg_ind_Ωinv, VAinvDA0, AVAinvA, intercept
 end
 
 

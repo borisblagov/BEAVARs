@@ -1,4 +1,6 @@
-include("devPkgs.jl")
+# SPDX-License-Identifier: MIT
+
+include("../devPkgs.jl")
 using BEAVARs
 using TimeSeries
 using Parameters
@@ -9,10 +11,11 @@ using LinearAlgebra
 using Distributions
 using SparseArrays
 
-include("src/plot_functions.jl")
+include("../src/plot_functions.jl")
 trans = 0;
-dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_julL","data/Specifications_mfvar.xlsx");
+dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_julL","./data/Specifications_mfvar.xlsx");
 out_strct, varSetup,hypSetup = beavar("Blagov2025",dataHF_tab,dataLF_tab,varList,0,n_burn=100,n_save=100);
+
 fanChart(out_strct.store_YY[:,1,:])
 Yfor3D = BEAVARs.forecast(out_strct,varSetup);
 fanChart(Yfor3D[:,1,:])
@@ -23,6 +26,14 @@ YY_HF_med = percentile_mat(out_strct.store_YY,0.5,dims=3);
 plot(M_zsp*YY_HF_med'[Sm_bit])
 plot!(z_vec)
 
+
+@unpack p = varSetup;
+Y,X,T,n = BEAVARs.mlagL(YY_HF_med,p);
+Amed = reshape(percentile_mat(out_strct.store_β,0.5,dims=2),n*p+1,n)
+global Yfit = X*Amed;
+global Yact = @views Y
+plot([Yfit[:,1],Yact[:,1]]*100)
+# fanChart(exp.(out_strct.store_h))
 
 varSetup, hypSetup =  BEAVARs.beavar_debug("Blagov2025",n_save=10,n_burn=10)
 
