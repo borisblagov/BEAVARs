@@ -169,7 +169,8 @@ function CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p)
     # Initialize matrices
     H_Bsp, strctBdraw_LI = BEAVARs.makeBlkDiag(Tfn,n,p, -structB_draw);
     H_B, H_B_CI, strB2HB_ind = BEAVARs.makeBlkDiag_ns(Tfn,n,p, -structB_draw);
-    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);                       # this is ( I(Tf*n) ⊗ Σ-1 )
+    Σ_invsp, Σt_LI = BEAVARs.makeBlkDiag(Tfn,n,0,Σt_inv);
+    Σ_inv, Σt_ns_LI = BEAVARs.makeBlkDiag_ns(Tfn,n,0,Σt_inv);   # make a non-sparse matrix if needed                         # this is ( I(Tf*n) ⊗ Σ-1 )
     Σp_invsp, Σpt_ind = BEAVARs.makeBlkDiag(Tfn-n*p,n,0,Σt_inv);                # this is ( I(T*n) ⊗ Σ-1 ), the difference is that this includes the 0,-1,...,-p lags
     cB_b0_LI = repeat(1:n,div(Tfn-n*p-n+1+n,n));  # this repeats [1:n] so that we can update cB[indicesAfter Y_0,Y_{-1}, ..., Ymp] = b0[cB_b0_LI]
     Xb = sparse(Matrix(1.0I, Tfn, Tfn))
@@ -238,6 +239,7 @@ function CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,sBd_ind,Σt_inv,Σt_L
     YYt[Sm_bit] = dropdims(median(mdraws,dims=2),dims=2);
     return YYt
 end
+
 
 
 

@@ -58,7 +58,7 @@ function ols(Y,X)
     n = size(Y,2)
     β = vec(X\Y);
     ε = Y-X*reshape(β,size(X,2),n);
-    σ_sq = ε'*ε/(size(Y,1)-size(X,2));
+    σ_sq = ε'*ε/(size(Y,1));
     return β, ε, σ_sq
 end
 
@@ -73,7 +73,7 @@ function ols2(Y,X,β,ε,T,n,σ_sq)
     β[:,:] = X\Y;
     # ε = Y-X*reshape(β,size(X,2),n);
     ε[:,:] = Y-X*β;
-    σ_sq[:,:] = mul!(σ_sq,ε',ε)./(T-n);
+    σ_sq[:,:] = mul!(σ_sq,ε',ε)./(size(Y));
     return β, ε, σ_sq
 end
 
@@ -103,7 +103,7 @@ function trainPriors(YY::Matrix{Float64},p::Int64)
         deltaP[:,ii] = b
         sigmaP[ii,:] = sig
     end
-    return deltaP, sigmaP, mu_prior
+    return deltaP, sigmaP, mu_prior,X
 end
 
 

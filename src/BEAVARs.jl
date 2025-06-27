@@ -41,6 +41,7 @@ struct Chan2020minn_type <: VARModelType end
 struct Chan2020iniw_type <: VARModelType end
 struct Chan2020iniw_type2 <: VARModelType end
 struct Chan2020csv_type <: VARModelType end
+struct Chan2020csv_type2 <: VARModelType end
 struct BGR2010_type <: VARModelType end
 struct CPZ2024_type <: VARModelType end
 struct Blagov2025_type <: VARModelType end
@@ -50,6 +51,8 @@ struct hypDefault_strct <: modelHypSetup end    # empty structure for initialisi
 function selectModel(model_str::String)
     if model_str == "Chan2020csv"
         model_type = Chan2020csv_type()
+    elseif model_str == "Chan2020csv2"
+        model_type = Chan2020csv_type2()
     elseif model_str == "Chan2020minn"
         model_type = Chan2020minn_type()
     elseif model_str == "Chan2020iniw"

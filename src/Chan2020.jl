@@ -218,26 +218,7 @@ end
 
 
 
-"""
-    
-"""
-function initMinn(YY,p)
-    Y, X, T, n, intercept       = mlagL(YY,p);
-    k                           = n*p+intercept
-    sigmaP                      = ar4!(YY,zeros(n,));                       # do OLS to initialize priors
-    S_0                         = Diagonal(sigmaP);              
-    Σt_inv                      = S_0\I;                                    # initialize Σ^-1              
-    Vβminn_inv                  = 1.0*Matrix(I,n*k,n*k);                    # prior matrix
-    Vβminn_inv_elview           = @view(Vβminn_inv[diagind(Vβminn_inv)]);   # will be used to update the diagonal    
-    Σ_invsp, Σt_LI              = BEAVARs.makeBlkDiag(T*n,n,0,Σt_inv);      # I(T) ⊗ Σ-1 and its indices for update
-    XtΣ_inv_den                 = zeros(k*n,T*n);                           # will be X' ( I(T) ⊗ Σ-1 )   from page 6 in Chan 2020 LBA
-    XtΣ_inv_X                   = zeros(n*k,n*k);                           # will be X' ( I(T) ⊗ Σ-1 ) X from page 6 in Chan 2020 LBA    
-    Xsur_den, Xsur_CI, X_CI     = BEAVARs.SUR_form_dense(X,n);              # prepares the SUR form and the indices of the parameters for updating
-    K_β                         = zeros(n*k,n*k);                           # Variance covariance matrix of the parameters
-    beta                        = zeros(n*k,);                              # the parameters in a vector
-    
-    return Y, X, T, n, sigmaP, S_0, Σt_inv, Vβminn_inv, Vβminn_inv_elview, Σ_invsp, Σt_LI, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept
-end
+
 
 
 
@@ -305,7 +286,7 @@ end
 @doc raw"""
     (idx_kappa1,idx_kappa2, C, beta_Minn) = prior_NonConj(n,p,sigmaP,hyp)
 
-Impements a Minnesota prior for a non-conjugate case as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
+Imlpements a Minnesota prior for a non-conjugate case as in Chan, J.C.C. (2020). Large Bayesian Vector Autoregressions. In: P. Fuleky (Eds),
 Macroeconomic Forecasting in the Era of Big Data, 95-125, Springer, Cham.
 
 Outputs: 
