@@ -31,7 +31,7 @@ export makeSetup, beavar, dispatchModel, makeOutput
 
 # Types for multiple dispatch across models
 abstract type VARModelType end      # types for models
-abstract type modelSetup end        # type for VAR setup parameters#
+abstract type modelSetup end        # type for VAR setup parameters
 abstract type modelOutput end       # type for output storage
 abstract type modelHypSetup end     # types for hyperparameters
 
@@ -75,7 +75,7 @@ end
 # structure initializing the VAR
 # Constructor
 @doc raw"""
-# set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+# set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,const_loc);
 Populates the constructor VARSetup with default and/or custom values.
 
     p:      number of lags, default is 4
@@ -98,6 +98,16 @@ Outputs
     const_loc::Int  # location of the constant
 end
 
+
+@with_kw struct varInput <: modelSetup
+    p::Int          # number of lags
+    nsave::Int      # gibbs to save
+    nburn::Int      # gibbs to burn
+    n_irf::Int      # number of impulse responses
+    n_fcst::Int     # number of forecast periods
+    const_loc::Int  # location of the constant
+    data:Array      #
+end
 
 # ------------------------
 # MAIN FUNCTION 
