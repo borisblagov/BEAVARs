@@ -9,24 +9,30 @@ using Plots
 # using Distributions
 # using SparseArrays
 
-hypMine = hypChan2020(σ_h2=0.1);
 include("src/plot_functions.jl")
 trans = 0;
-dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_julL","data/Specifications_mfvar.xlsx");
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=100,n_save=100,hyp=hypMine);
-out_strct2, varSetup,hypSetup = beavar("Blagov2025",dataHF_tab,dataLF_tab,varList,0,n_burn=100,n_save=100,hyp=hypMine);
+dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=1000,n_save=1000);
+Yfor_low1, Yfor_low, Yfor_med, Yfor_hih, Yfor_hih1 = fanChart(out_strct.store_YY[:,1,:].*100, timestamp(dataHF_tab));
+Plots.ylabel!("percent"); Plots.title!("Monthly GDP growth")
+
+data = (datetime = timestamp(dataHF_tab), col0 = Yfor_low1, col1 = Yfor_low, col2 = Yfor_med,col3 = Yfor_hih, col4 = Yfor_hih1);
+ta = TimeArray(data; timestamp = :datetime, meta = "Example");
+plot(ta.*100)
+
+# out_strct2, varSetup,hypSetup = beavar("Blagov2025",dataHF_tab,dataLF_tab,varList,0,n_burn=100,n_save=100);
 
 
-fanChart(out_strct.store_YY[:,1,:])
 Yfor3D = BEAVARs.forecast(out_strct,varSetup);
-fanChart(Yfor3D[:,1,:])
+# fanChart(Yfor3D[:,1,:])
 
 
 YY_HF_med = percentile_mat(out_strct.store_YY,0.5,dims=3);
-YY_HF_med2 = percentile_mat(out_strct2.store_YY,0.5,dims=3);
+# YY_HF_med2 = percentile_mat(out_strct2.store_YY,0.5,dims=3);
 @unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
 plot(M_zsp*YY_HF_med'[Sm_bit])
 plot!(z_vec)
+
 
 
 @unpack p = varSetup;

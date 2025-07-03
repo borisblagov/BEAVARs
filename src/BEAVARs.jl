@@ -99,15 +99,15 @@ Outputs
 end
 
 
-@with_kw struct varInput <: modelSetup
-    p::Int          # number of lags
-    nsave::Int      # gibbs to save
-    nburn::Int      # gibbs to burn
-    n_irf::Int      # number of impulse responses
-    n_fcst::Int     # number of forecast periods
-    const_loc::Int  # location of the constant
-    data:Array      #
-end
+# @with_kw struct varInput <: modelSetup
+#     p::Int          # number of lags
+#     nsave::Int      # gibbs to save
+#     nburn::Int      # gibbs to burn
+#     n_irf::Int      # number of impulse responses
+#     n_fcst::Int     # number of forecast periods
+#     const_loc::Int  # location of the constant
+#     data:Array      #
+# end
 
 # ------------------------
 # MAIN FUNCTION 
