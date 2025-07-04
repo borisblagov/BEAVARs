@@ -7,9 +7,9 @@ end
 @doc raw"""
     varOrder must be `Vector{Symbol}` and not `Vector{Vector{Symbol}}`
     e.g. [varNamesLF; varNamesHF] and not [varNamesLF, varNamesHF]
-    trans = 0 means growht rates (default)
+    aggWgh = 0 means growht rates (default)
 """
-function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,trans)
+function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,aggWgh)
     varNamesLF = colnames(dataLF_tab)
     # z_tab = dataLF_tab[.!isnan.(dataLF_tab)];
     z_tab = dataLF_tab;
@@ -19,14 +19,14 @@ function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,trans)
     fvarNames = colnames(fdataHF_tab)                # full list of the variable names
     datesHF = timestamp(fdataHF_tab)
     datesLF = timestamp(z_tab)
-    freqL_date = Month(datesLF[2])-Month(datesLF[1])
+    freqL_date = Month(datesLF[2])-Month(datesLF[1]) # looks whether the data is quarterly or yearly
     freqH_date = Month(datesHF[2])-Month(datesHF[1])
 
     if freqL_date==Month(0)
         freqL_date = Month(12)
     end 
     # tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
-    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),trans) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),aggWgh) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
     return fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames
 end
 
@@ -276,12 +276,12 @@ end
 @doc raw"""
     Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based independent Normal-Wishart prior
 """
-function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
+function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggWgh)
     @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
     nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
 
-    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList,trans)
+    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList,aggWgh)
 
     YYwNA = values(fdataHF_tab);
     YY = deepcopy(YYwNA);
@@ -406,9 +406,9 @@ function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n
     dataHF_tab  = YY_tup[1]
     dataLF_tab  = YY_tup[2]
     varList     = YY_tup[3]
-    trans       = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
+    aggWgh      = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,aggWgh)    
     out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
     return out_strct, set_strct
 end

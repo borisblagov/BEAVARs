@@ -99,14 +99,16 @@ Outputs
 end
 
 
-# @with_kw struct varInput <: modelSetup
+# @with_kw struct setupCPZ <: modelSetup
 #     p::Int          # number of lags
 #     nsave::Int      # gibbs to save
 #     nburn::Int      # gibbs to burn
 #     n_irf::Int      # number of impulse responses
 #     n_fcst::Int     # number of forecast periods
 #     const_loc::Int  # location of the constant
-#     data:Array      #
+#     dataHF_tab:TimeArray     #
+#     dataLF_tab:TimeArray     #
+#     aggWgh::Int:     #
 # end
 
 # ------------------------
@@ -140,6 +142,18 @@ function beavar_debug(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::I
     return set_strct, hyp_strct
 end
 
+function makeVARstrct(model_str=model_name::String,dataHF_tab::TimeArray,dataLF_tab::TimeArray,aggWgh::Int;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+    model_type = BEAVARs.selectModel(model_str)
+    
+    # checking if user supplied the hyperparameter structure
+    if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
+        hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
+    else                                            # else use supplied    
+        hyp_strct = hyp; # println("using the supplied parameters")
+    end
+        
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,1)
+end
 
 include("dataPrep.jl")
 include("init_functions.jl")
