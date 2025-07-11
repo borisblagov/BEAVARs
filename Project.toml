@@ -4,6 +4,7 @@ authors = ["Boris Blagov <46528899+borisblagov@users.noreply.github.com> and con
 version = "0.1.0"
 
 [deps]
+Cthulhu = "f68482b8-f384-11e8-15f7-abe071a5a75f"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -18,6 +19,7 @@ TimeSeries = "9e3dc215-6440-5c97-bce1-76c03772f85e"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
+Cthulhu = "2.16.5"
 DataFrames = "1.7.0"
 Dates = "1.11.0"
 Distributions = "0.25.118"

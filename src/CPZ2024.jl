@@ -45,9 +45,9 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
     end
     M_z = zeros(T_z*n_z,nm)
     z_vec = zeros(T_z*n_z,)
+    iter = CartesianIndices(YYt)
     for ii_z = 1:n_z # iterator going through each variable in z_tab (along the columns)
         datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
-        iter = CartesianIndices(YYt)
         ym_ci = iter[Sm_bit] # a vector of y_m with cartesian indices of the missing values in YYt
         z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
         z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
@@ -329,6 +329,57 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggWgh)
 end
 
 
+function CPZ2024n(YYwNA, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames,varSetup,hypSetup)
+    @unpack p, nburn,nsave, const_loc = varSetup
+    ndraws = nsave+nburn;
+    nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
+
+
+    YY = deepcopy(YYwNA);
+    Tf,n = size(YY);
+    
+    B_draw, structB_draw, Σt_inv, b0 = BEAVARs.initParamMatrices(n,p,const_loc) 
+
+    YYt, Y0, longyo, nm, H_B, H_B_CI, strctBdraw_LI, Σ_invsp, Σt_LI, Σp_invsp, Σpt_ind, Xb, cB, cB_b0_LI, Smsp, Sosp, Sm_bit, Gm, Go, GΣ, Kym = BEAVARs.CPZ_initMatrices(YY,structB_draw,b0,Σt_inv,p);
+    
+    M_zsp, z_vec, T_z, MOiM, MOiz = BEAVARs.CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf);
+
+    # YY has missing values so we need to draw them once to be able to initialize matrices and prior values
+    YYt = BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
+    
+    # we will be updating the priors for variables with many missing observations (>25%)
+    updP_vec = sum(Sm_bit,dims=2).>size(Sm_bit,2)*0.25;
+    
+    # Initialize matrices for updating the parameter draws from CPZ_iniv  
+    # ------------------------------------
+    Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept = CPZ_initMinn(YY,p)
+    
+
+    # prepare matrices for storage
+    store_YY    = zeros(Tf,n,nsave);
+    store_β     = zeros(n^2*p+n,nsave);
+    store_Σt_inv= zeros(n,n,nsave);
+    store_Σt    = zeros(n,n,nsave);
+
+    @showprogress for ii in 1:ndraws
+        # draw of the missing values
+        BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
+        
+        # draw of the parameters
+        beta,b0,B_draw,Σt_inv,structB_draw,Σt = BEAVARs.CPZ_iniw!(YY,p,hypSetup,n,k,b0,B_draw,Σt_inv,structB_draw,Σp_invsp,Σpt_ind,Y,X,T,mu_prior,deltaP,sigmaP,const_loc,Xsur_den,Xsur_CI,X_CI,XtΣ_inv_den,XtΣ_inv_X,V_Minn_inv,V_Minn_inv_elview,updP_vec,K_β,beta);
+
+        if ii>nburn
+            store_β[:,ii-nburn]  = beta;
+            store_YY[:,:,ii-nburn]  = YY;
+            store_Σt_inv[:,:,ii-nburn]    = Σt_inv;
+            store_Σt[:,:,ii-nburn] = Σt;
+        end
+    end
+
+    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt
+end
+
+
 
 
 """
@@ -407,6 +458,16 @@ function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n
     dataLF_tab  = YY_tup[2]
     varList     = YY_tup[3]
     aggWgh      = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
+    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,aggWgh)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    return out_strct, set_strct
+end
+
+
+function dispatchModel(::CPZ2024_type,dataHF_tab,dataLF_tab,varList,aggWgh, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
+    println("Hello CPZ2024")
+    intercept = 1;
     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
     store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,aggWgh)    
     out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
