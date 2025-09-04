@@ -7,7 +7,7 @@ using DelimitedFiles
 using Statistics
 using LinearAlgebra
 using Distributions
-using Chtulhu
+using Cthulhu
 
 
 dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
