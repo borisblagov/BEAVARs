@@ -1,6 +1,5 @@
 module BEAVARs
-using   Revise, 
-        LinearAlgebra, 
+using   LinearAlgebra, 
         Distributions, 
         SparseArrays,
         TimeSeries, 
@@ -21,7 +20,7 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, Chan2020minn, Chan2020csv, prior_NonConj
 export hypChan2020
 
-export makeSetup, beavar, dispatchModel, makeOutput
+export beavar, dispatchModel, makeOutput, makeSetup
 
 # Structures, to be uncommented later
 # export modelSetup, modelOutput, Chan2020csv_type, Chan2020minn_type, modelHypSetup, hypDefault_strct, outChan2020csv, VARModelType, VARSetup

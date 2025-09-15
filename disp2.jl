@@ -1,6 +1,6 @@
 include("devPkgs.jl")
-using Parameters
 using BEAVARs
+using Parameters
 using TimeSeries
 using DelimitedFiles
 # using Plots
