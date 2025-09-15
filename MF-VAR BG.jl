@@ -3,7 +3,7 @@ using BEAVARs
 using TimeSeries
 using Parameters
 using Plots
-# using DelimitedFiles
+using DelimitedFiles
 # using Statistics
 # using LinearAlgebra
 # using Distributions
@@ -11,10 +11,15 @@ using Plots
 
 include("src/plot_functions.jl")
 trans = 0;
-dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
-out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=1000,n_save=1000);
+dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250911","data/Specifications_mfvar.xlsx");
+out_strct, varSetup,hypSetup = beavar("CPZ2024",dataHF_tab,dataLF_tab,varList,0,n_burn=10000,n_save=10000);
 Yfor_low1, Yfor_low, Yfor_med, Yfor_hih, Yfor_hih1 = fanChart(out_strct.store_YY[:,1,:].*100, timestamp(dataHF_tab));
 Plots.ylabel!("percent"); Plots.title!("Monthly GDP growth")
+
+out_strct2, varSetup2,hypSetup2 = beavar("Blagov2025",dataHF_tab,dataLF_tab,varList,0,n_burn=10000,n_save=10000);
+Yfor2_low1, Yfor_low2, Yfor_med2, Yfor_hih2, Yfor_hih12 = fanChart(out_strct2.store_YY[:,1,:].*100, timestamp(dataHF_tab));
+Plots.ylabel!("percent"); Plots.title!("Monthly GDP growth")
+
 
 data = (datetime = timestamp(dataHF_tab), col0 = Yfor_low1, col1 = Yfor_low, col2 = Yfor_med,col3 = Yfor_hih, col4 = Yfor_hih1);
 ta = TimeArray(data; timestamp = :datetime, meta = "Example");
@@ -56,3 +61,5 @@ for i_var = 1:n;
     plot!(plt,[Yfit[:,i_var] Yact[:,i_var]],subplot=i_var)
 end
 display(plt)
+
+percentliles_mat =[Yfor_low1 Yfor_low Yfor_med Yfor_hih Yfor_hih1]
