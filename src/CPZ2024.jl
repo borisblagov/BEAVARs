@@ -2,14 +2,28 @@ function makeHypSetup(::CPZ2024_type)
     return hypChan2020()
 end
 
+# Structure for the datasets and the frequency mix
+@with_kw struct dataCPZ2024 <: BVARmodelDataSetup
+    dataHF_tab::TimeArray                                       # data for the high-frequency variables
+    dataLF_tab::TimeArray                                       # data for the low-frequency variables
+    aggMix::Int                                                 # 0: growth rates, 1: log-levels. indicator for the aggregate weights in the inter-temporal aggregation
+    var_list::Array{Symbol,1}                                   # Symbol vector with the variable names, will be used for ordering
+end
+
+@doc raw"""
+    Prepares the structure containg the data for the mixed-frequency VAR. Uses Time Arrays from the TimeSeries package
+"""
+function makeDataSetup(::CPZ2024_type,dataHF_tab::TimeArray, dataLF_tab::TimeArray, aggMix::Int; var_list =  [colnames(dataHF_tab); colnames(dataLF_tab)])
+    return dataCPZ2024(dataHF_tab, dataLF_tab, aggMix, var_list)
+end
 
 
 @doc raw"""
-    varOrder must be `Vector{Symbol}` and not `Vector{Vector{Symbol}}`
+    varOrder must be a `Vector{Symbol}` and not `Vector{Vector{Symbol}}`
     e.g. [varNamesLF; varNamesHF] and not [varNamesLF, varNamesHF]
-    aggWgh = 0 means growht rates (default)
+    aggMix = 0: growth rates, 1: log-levels. indicator for the aggregate weights in the inter-temporal aggregation
 """
-function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,aggWgh)
+function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,aggMix)
     varNamesLF = colnames(dataLF_tab)
     # z_tab = dataLF_tab[.!isnan.(dataLF_tab)];
     z_tab = dataLF_tab;
@@ -26,7 +40,7 @@ function CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varOrder,aggWgh)
         freqL_date = Month(12)
     end 
     # tuple showing the specification: 1, 3, 12 are monthly quarterly, annually and 0,1 is growth rates or log-levels
-    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),aggWgh) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
+    freq_mix_tp = (convert(Int,freqH_date/Month(1)), convert(Int,freqL_date/Month(1)),aggMix) # tuple with the high and low frequencies. 1 is monthly, 3 is quarterly, 12 is annually
     return fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames
 end
 
@@ -276,12 +290,12 @@ end
 @doc raw"""
     Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based independent Normal-Wishart prior
 """
-function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggWgh)
+function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
     @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
     nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
 
-    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList,aggWgh)
+    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList,aggMix)
 
     YYwNA = values(fdataHF_tab);
     YY = deepcopy(YYwNA);
@@ -406,7 +420,7 @@ end
 
 #------------------------------
 # Output structure
-@with_kw struct VAROutput_CPZ2024 <: modelOutput
+@with_kw struct VAROutput_CPZ2024 <: BVARmodelOutput
     store_β::Array{}        # 
     store_Σt_inv::Array{}        # 
     store_YY::Array{}
@@ -450,26 +464,3 @@ end # end function fcastCPZ2024()
 
 
 
-
-function dispatchModel(::CPZ2024_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello CPZ2024")
-    intercept = 1;
-    dataHF_tab  = YY_tup[1]
-    dataLF_tab  = YY_tup[2]
-    varList     = YY_tup[3]
-    aggWgh      = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,aggWgh)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
-end
-
-
-function dispatchModel(::CPZ2024_type,dataHF_tab,dataLF_tab,varList,aggWgh, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello CPZ2024")
-    intercept = 1;
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,aggWgh)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
-end

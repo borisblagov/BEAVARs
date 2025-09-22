@@ -5,7 +5,7 @@ function makeHypSetup(::BGR2010_type)
     return hypBGR2010()
 end
 
-@with_kw struct hypBGR2010 <: modelHypSetup
+@with_kw struct hypBGR2010 <: BVARmodelHypSetup
     lambda::Float64     = 0.1; # hyperparameter shrinkage between AR(1) and OLS
     epsi::Float64     = 0.001; # hyperparameter on the constant
 end
@@ -138,7 +138,7 @@ end
 
 
 # function BGR2010(Z::Matrix{Float64};lags::Integer=1,lambda::Float64=0.1,epsi::Float64=0.001,nburn::Integer=1000,nsave::Integer=2000)
-function BGR2010(Z::Matrix{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+function BGR2010(Z::Matrix{Float64},VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack lambda, epsi = hypSetup
     @unpack p, nsave, nburn = VARSetup
     # p = lags;
@@ -193,7 +193,7 @@ end
 
 
 # types for output export
-@with_kw struct VAROutput_BGR2010 <: modelOutput
+@with_kw struct VAROutput_BGR2010 <: BVARmodelOutput
     store_β::Array{}      # 
     store_Σ::Array{}      # 
     YY::Array{}             #

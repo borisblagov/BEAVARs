@@ -25,7 +25,7 @@ function dispatchModel(::Chan2020iniw_type,YY_tup, hyper_str, p,n_burn,n_save,n_
 end
 
 
-function Chan2020iniw(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020iniw(YY,VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack p,nburn,nsave = VARSetup
     ndraws  = nsave+nburn;
 
@@ -56,7 +56,7 @@ end
 
 
 
-@with_kw struct VAROutput_Chan2020iniw <: modelOutput
+@with_kw struct VAROutput_Chan2020iniw <: BVARmodelOutput
     store_β::Array{}      # 
     store_Σ::Array{}      # 
     YY::Array{}           #

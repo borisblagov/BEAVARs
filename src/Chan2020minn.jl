@@ -7,13 +7,35 @@ function makeHypSetup(::Chan2020minn_type)
 end
 
 
+# Structure for the datasets and the frequency mix
+@with_kw struct dataChan2020minn <: BVARmodelDataSetup
+    data_tab::TimeArray                                             # data for the high-frequency variables
+    var_list::Array{Symbol,1}                                          # Symbol vector with the variable names, will be used for ordering
+end
+
+@doc raw"""
+    Prepares the structure containg the data for Bayesian VAR. Uses Time Arrays from the TimeSeries package
+"""
+function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+    return dataChan2020minn(data_tab, var_list)
+end
+
+@doc raw"""
+    Prepares the structure containg the data for Bayesian VAR. Uses Time Arrays from the TimeSeries package
+"""
+function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+    return dataChan2020minn(data_tab, var_list)
+end
+
+
+
 @doc raw"""
 # Chan2020minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
 """
-function Chan2020minn(YY,VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020minn(YY,VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack p,nburn,nsave = VARSetup
     
     Y, X, T, n, sigmaP, S_0, Σt_inv, Vβminn_inv, Vβminn_inv_elview, Σ_invsp, Σt_LI, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, K_β, beta, intercept = BEAVARs.initMinn(YY,p);
@@ -47,7 +69,7 @@ end
 
 
 # types for output export
-@with_kw struct VAROutput_Chan2020minn <: modelOutput
+@with_kw struct VAROutput_Chan2020minn <: BVARmodelOutput
     store_β::Array{}      # 
     store_Σ::Array{}      # 
     YY::Array{}             #
@@ -100,8 +122,12 @@ function dispatchModel(::Chan2020minn_type,YY_tup, hyper_str, p,n_burn,n_save,n_
     return out_strct, set_strct
 end
 
+
+
+
+
 """
-    
+
 """
 function initMinn(YY,p)
     Y, X, T, n, intercept       = mlagL(YY,p);

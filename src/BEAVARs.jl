@@ -23,28 +23,29 @@ export hypChan2020
 export beavar, dispatchModel, makeOutput, makeSetup
 
 # Structures, to be uncommented later
-# export modelSetup, modelOutput, Chan2020csv_type, Chan2020minn_type, modelHypSetup, hypDefault_strct, outChan2020csv, VARModelType, VARSetup
+# export BVARmodelSetup, BVARmodelOutput, Chan2020csv_type, Chan2020minn_type, BVARmodelHypSetup, hypDefault_strct, outChan2020csv, BVARModelType, VARSetup
 
 
 
 
 # Types for multiple dispatch across models
-abstract type VARModelType end      # types for models
-abstract type modelSetup end        # type for VAR setup parameters
-abstract type modelOutput end       # type for output storage
-abstract type modelHypSetup end     # types for hyperparameters
+abstract type BVARmodelType end         # types for models
+abstract type BVARmodelSetup end        # type for VAR setup parameters
+abstract type BVARmodelHypSetup end     # types for hyperparameters
+abstract type BVARmodelDataSetup end    # types for storing the data unputs to the models
+abstract type BVARmodelOutput end       # type for output storage
 
 
 # Structures for multiple dispatch across models
-struct Chan2020minn_type <: VARModelType end
-struct Chan2020iniw_type <: VARModelType end
-struct Chan2020iniw_type2 <: VARModelType end
-struct Chan2020csv_type <: VARModelType end
-struct Chan2020csv_type2 <: VARModelType end
-struct BGR2010_type <: VARModelType end
-struct CPZ2024_type <: VARModelType end
-struct Blagov2025_type <: VARModelType end
-struct hypDefault_strct <: modelHypSetup end    # empty structure for initialising the hyperparameters
+struct Chan2020minn_type <: BVARmodelType end
+struct Chan2020iniw_type <: BVARmodelType end
+struct Chan2020iniw_type2 <: BVARmodelType end
+struct Chan2020csv_type <: BVARmodelType end
+struct Chan2020csv_type2 <: BVARmodelType end
+struct BGR2010_type <: BVARmodelType end
+struct CPZ2024_type <: BVARmodelType end
+struct Blagov2025_type <: BVARmodelType end
+struct hypDefault_strct <: BVARmodelHypSetup end    # empty structure for initialising the hyperparameters
 
 
 function selectModel(model_str::String)
@@ -71,6 +72,7 @@ function selectModel(model_str::String)
 end
 
 
+
 # structure initializing the VAR
 # Constructor
 @doc raw"""
@@ -86,9 +88,8 @@ Populates the constructor VARSetup with default and/or custom values.
 Outputs
 
     VARSetup: the setup structure for the BEAVARs
-```
 """
-@with_kw struct VARSetup <: modelSetup
+@with_kw struct VARSetup <: BVARmodelSetup
     p::Int          # number of lags
     nsave::Int      # gibbs to save
     nburn::Int      # gibbs to burn
@@ -98,22 +99,9 @@ Outputs
 end
 
 
-@with_kw struct varMFsetup <: modelSetup
-    model_type::VARModelType    # type of model
-    p::Int                      # number of lags
-    nsave::Int                  # gibbs to save
-    nburn::Int                  # gibbs to burn
-    n_irf::Int                  # number of impulse responses
-    n_fcst::Int                 # number of forecast periods
-    dataHF_tab::TimeArray{Float64, 2, DateTime, Matrix{Float64}}       # data for the high-frequency variables
-    dataLF_tab::TimeArray{Float64, 2, DateTime, Matrix{Float64}}       # data for the low-frequency variables
-    aggMix::Int                 # indicator for the type of inter-temporal aggregation (levels, growth-rates, MQ or QY)
-    hyp_strct::modelHypSetup   # the hyperparameters structure
-end
-
 # ------------------------
 # MAIN FUNCTION 
-function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
     model_type = BEAVARs.selectModel(model_str)
     
     # checking if user supplied the hyperparameter structure
@@ -128,44 +116,41 @@ function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=100
 end
 
 
-function beavar2(varSetup_strct::BEAVARs.varMFsetup)
-    @unpack model_type, p,nburn,nsave,n_irf,n_fcst,dataHF_tab,dataLF_tab, aggMix,hyp_strct = varSetup_strct
-    varList = [colnames(dataHF_tab); colnames(dataLF_tab)]
-    set_strct = VARSetup(p,nsave,nburn,n_irf,n_fcst,1);
-    out_strct, set_strct = dispatchModel(model_type,dataHF_tab,dataLF_tab,varList,aggMix, hyp_strct,p,nburn,nsave,n_irf,n_fcst);
-    
+function beavar(::CPZ2024_type, data_strct, hyp_strct, set_strct)
+    println("Hello CPZ2024")
+    @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    return out_strct, set_strct
+end
+
+function beavar(::Chan2020minn_type, data_strct, hyper_str, set_strct)
+    println("Hello Minn")
+    YY = values(data_strct.data_tab);
+    store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
+    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
     return out_strct, set_strct
 end
 
 
-function beavar(varSetup_strct::BEAVARs.varMFsetup)
-    @unpack model_type, p,nburn,nsave,n_irf,n_fcst,dataHF_tab,dataLF_tab, aggMix,hyp_strct = varSetup_strct
-    varList = [colnames(dataHF_tab); colnames(dataLF_tab)]
 
 
-    intercept = 1;
-    set_strct = BEAVARs.VARSetup(p,nsave,nburn,n_irf,n_fcst,intercept);
-    fdataHF_tab, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames = BEAVARs.CPZ_prep_TimeArrays(dataLF_tab,dataHF_tab,varList,aggMix)
-
-    YYwNA = values(fdataHF_tab);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = BEAVARs.CPZ2024n(YYwNA, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames,set_strct,hyp_strct)    
-    out_strct = BEAVARs.VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
-end
-
-
-function makeSetup(model_str::String,dataHF_tab::TimeArray,dataLF_tab::TimeArray,aggMix::Int;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::modelHypSetup=hypDefault_strct())
+function makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
     model_type = BEAVARs.selectModel(model_str)
     # checking if user supplied the hyperparameter structure
-    if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
+    if isa(hyp,hypDefault_strct)                        # if not supplied, make a default one
         hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
-    else                                            # else use supplied    
+    else                                                # else use supplied    
         hyp_strct = hyp; # println("using the supplied parameters")
     end
 
-    varSetup_strct = varMFsetup(model_type,p,n_save,n_burn,n_irf,n_fcst,dataHF_tab::TimeArray{Float64, 2, DateTime, Matrix{Float64}},dataLF_tab::TimeArray{Float64, 2, DateTime, Matrix{Float64}},aggMix,hyp_strct)
-    return varSetup_strct
+    intercept = 1;
+    
+    set_strct = BEAVARs.VARSetup(p,n_burn,n_save,n_irf,n_fcst,intercept);
+    return model_type, hyp_strct, set_strct
 end
+
+
 
 
 include("dataPrep.jl")

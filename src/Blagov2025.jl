@@ -105,7 +105,7 @@ end
 
 #------------------------------
 # Output structure
-@with_kw struct VAROutput_Blagov2025 <: modelOutput
+@with_kw struct VAROutput_Blagov2025 <: BVARmodelOutput
     store_β::Array{}        # 
     store_Σt_inv::Array{}        # 
     store_YY::Array{}

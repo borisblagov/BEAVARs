@@ -50,7 +50,7 @@ end
 Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
 
 """
-function Chan2020csv(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020csv(YY::Array{Float64},VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
 
@@ -276,7 +276,7 @@ function Chan2020_draw_ρ!(ρ,h,eh,v_h0,S_h0,ρ_0,V_ρ,T)
     return ρ, σ_h2, eh
 end
 
-@with_kw struct VAROutput_Chan2020csv <: modelOutput
+@with_kw struct VAROutput_Chan2020csv <: BVARmodelOutput
     store_β::Array{}        # 
     store_Σ::Array{}        # 
     store_h::Array{}        # 
@@ -388,7 +388,7 @@ end
 Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
 
 """
-function Chan2020csv2(YY::Array{Float64},VARSetup::modelSetup,hypSetup::modelHypSetup)
+function Chan2020csv2(YY::Array{Float64},VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
     @unpack p, nsave, nburn = VARSetup
     

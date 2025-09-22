@@ -8,17 +8,17 @@ using Plots
 # using LinearAlgebra
 
 
-# YY = rand(35,4);
-# YYlist = [:Y1; :Y2; :Y3; :Y4]
-
-
-
 data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
 
 YYlist = [:tpuCaldara, :pmiDE, :gdpDE, :invDE, :hicpDE, :euribor];
 data_de = data_ta_full[YYlist];
 var_names = colnames(data_de)
 YY = values(data_de);
+
+model_type, hyp_strct, set_strct = makeSetup("Chan2020minn",n_burn=10;n_save=10)
+data_strct = BEAVARs.makeDataSetup(model_type,data_de,var_list=var_names)
+
+out_strct_minn, varSetup = beavar(model_type,data_strct, hyp_strct, set_strct);
 
 
 nsave = 100; nburn = 100;
@@ -29,11 +29,23 @@ out_strct_csv, varSetup,hypSetup = beavar("Chan2020csv",YY,n_save=nsave,n_burn=n
 out_strct_bgr, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=nsave,n_burn=nburn);
 
 
-var = 2
+###
+dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
+model_type, hyp_strct, set_strct = makeSetup("CPZ2024",n_burn=10;n_save=10)
+data_strct = BEAVARs.makeDataSetup(model_type,dataHF_tab, dataLF_tab,0)
+
+# beavar(model_type,dataHF_tab,dataLF_tab,varList,aggWgh, hyp_strct, set_strct);
+beavar(model_type,data_strct, hyp_strct, set_strct);
+
+
+
+###
+
+var_no = 2
 Yfit, Yact = BEAVARs.modelFit(out_strct_minn,varSetup);
-plot([Yfit[:,var],Yact[:,var]]*100)
+plot([Yfit[:,var_no],Yact[:,var_no]]*100)
 Yfit, Yact = BEAVARs.modelFit(out_strct_csv2,varSetup);
-plot([Yfit[:,var],Yact[:,var]]*100)
+plot([Yfit[:,var_no],Yact[:,var_no]]*100)
 
 Yfor3D = BEAVARs.forecast(out_strct2,varSetup2)
 

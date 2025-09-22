@@ -33,7 +33,7 @@ function xlsx2ta(data_mat)
     nan_mat =  fill(NaN, size(data_mat,1),size(data_mat,2));
     data_mat[ismissing.(data_mat)]=nan_mat[ismissing.(data_mat)];   # replace all missing with NaN
     values_mat = convert(Array{Float64},data_mat[2:end,2:end])      # convert values to numbers
-    date_vec = DateTime.(data_mat[2:end,1])                         # convert first column to DateTime
+    date_vec = Date.(data_mat[2:end,1])                         # convert first column to DateTime
     # date_vecstr = Dates.DateFormat.(date_vec,"yyyy-mm-dd");
 
     dataf_TA = TimeArray(date_vec,values_mat,Symbol.(data_mat[1,2:end]))

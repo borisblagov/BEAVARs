@@ -1,7 +1,9 @@
 #----------------------------------------
 # Chan 2020 LBA functions 
 
-@with_kw struct hypChan2020 <: modelHypSetup
+
+# Structure for the hyperparameters for the models
+@with_kw struct hypChan2020 <: BVARmodelHypSetup
     c1::Float64     = 0.04; # hyperparameter on own lags
     c2::Float64     = 0.01; # hyperparameter on other lags
     c3::Float64     = 100;  # hyperparameter on the constant
@@ -14,6 +16,9 @@
     q::Float64       = 0.5;
     nu0::Int         = 3;   # degrees of freedom to add for the inverse wishart distribution of the variance-covariance matrices
 end
+
+
+
 
 """
     Xsur = SUR_form(X,n)
