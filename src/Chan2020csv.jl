@@ -6,9 +6,18 @@ function makeHypSetup(::Chan2020csv_type)
 end
 
 
+
 function makeHypSetup(::Chan2020csv_type2)
     return hypChan2020()
 end
+
+@doc raw"""
+    Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
+"""
+function makeDataSetup(::Chan2020csv_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+    return dataChan2020(data_tab, var_list)
+end
+
 
 function dispatchModel(::Chan2020csv_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
     println("Hello csv")

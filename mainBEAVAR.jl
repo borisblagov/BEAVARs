@@ -15,7 +15,7 @@ data_de = data_ta_full[YYlist];
 var_names = colnames(data_de)
 YY = values(data_de);
 
-model_type, hyp_strct, set_strct = makeSetup("Chan2020minn",n_burn=10;n_save=10)
+model_type, hyp_strct, set_strct = makeSetup("Chan2020csv",n_burn=10;n_save=10)
 data_strct = BEAVARs.makeDataSetup(model_type,data_de,var_list=var_names)
 
 out_strct_minn, varSetup = beavar(model_type,data_strct, hyp_strct, set_strct);

@@ -6,18 +6,11 @@ function makeHypSetup(::Chan2020minn_type)
     return hypChan2020()
 end
 
-
-# Structure for the datasets and the frequency mix
-@with_kw struct dataChan2020minn <: BVARmodelDataSetup
-    data_tab::TimeArray                                             # data for the high-frequency variables
-    var_list::Array{Symbol,1}                                          # Symbol vector with the variable names, will be used for ordering
-end
-
 @doc raw"""
-    Prepares the structure containg the data for Bayesian VAR. Uses Time Arrays from the TimeSeries package
+    Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
 """
 function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
-    return dataChan2020minn(data_tab, var_list)
+    return dataChan2020(data_tab, var_list)
 end
 
 

@@ -19,6 +19,13 @@ end
 
 
 
+# Structure for the datasets 
+@with_kw struct dataChan2020 <: BVARmodelDataSetup
+    data_tab::TimeArray                                             # data for the high-frequency variables
+    var_list::Array{Symbol,1}                                          # Symbol vector with the variable names, will be used for ordering
+end
+
+
 
 """
     Xsur = SUR_form(X,n)
