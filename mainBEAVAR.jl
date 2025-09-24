@@ -1,12 +1,9 @@
 include("devPkgs.jl")
-using BEAVARs
-using TimeSeries
-using Parameters
+using   BEAVARs, TimeSeries, Parameters, Plots
 # using DelimitedFiles
-using Plots
+# using Plots
 # using Statistics
 # using LinearAlgebra
-
 
 data_ta_full = readtimearray("data/data_tpu.csv"; format="dd/mm/yyyy", delim=',')
 
@@ -15,10 +12,13 @@ data_de = data_ta_full[YYlist];
 var_names = colnames(data_de)
 YY = values(data_de);
 
-model_type, hyp_strct, set_strct = makeSetup("Chan2020csv",n_burn=10;n_save=10)
+model_type, hyp_strct, set_strct = makeSetup("BGR2010",n_burn=1000;n_save=1000)
 data_strct = BEAVARs.makeDataSetup(model_type,data_de,var_list=var_names)
+out_strct_minn, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
 
-out_strct_minn, varSetup = beavar(model_type,data_strct, hyp_strct, set_strct);
+
+
+model_type, hyp_strct, set_strct = makeSetup("Chan2020iniw",n_burn=10;n_save=10)
 
 
 nsave = 100; nburn = 100;
@@ -34,8 +34,6 @@ dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specificat
 model_type, hyp_strct, set_strct = makeSetup("CPZ2024",n_burn=10;n_save=10)
 data_strct = BEAVARs.makeDataSetup(model_type,dataHF_tab, dataLF_tab,0)
 
-# beavar(model_type,dataHF_tab,dataLF_tab,varList,aggWgh, hyp_strct, set_strct);
-beavar(model_type,data_strct, hyp_strct, set_strct);
 
 
 
@@ -44,7 +42,7 @@ beavar(model_type,data_strct, hyp_strct, set_strct);
 var_no = 2
 Yfit, Yact = BEAVARs.modelFit(out_strct_minn,varSetup);
 plot([Yfit[:,var_no],Yact[:,var_no]]*100)
-Yfit, Yact = BEAVARs.modelFit(out_strct_csv2,varSetup);
+Yfit, Yact = BEAVARs.modelFit(out_strct_csv,varSetup);
 plot([Yfit[:,var_no],Yact[:,var_no]]*100)
 
 Yfor3D = BEAVARs.forecast(out_strct2,varSetup2)

@@ -2,26 +2,39 @@
 
 **BEAVARs.jl: Bayesian Econometric Analysis using Vector Autoregressive models**
 
+![Credit Mikelde Ferro: https://www.youtube.com/watch?v=WIYQWK4pkqg&ab_channel=MikedelFerro-Music](assets/BeaverMunchingCabbage.png)
+
+
 This is a personal package implementing various Bayesian VARs for economic analysis and forecasting. 
 
 
 
-Currently implemented VARs:
- - [Banbura2010](@ref): BVAR with dummy observations as in Banbura, M., Giannone, D., and Reichlin, L. (2010), Large Bayesian vecotr auto regressions, _Journal of Applied Econometrics_, Vol 25(1), [doi.org/10.1002/jae.1137](https://doi.org/10.1002/jae.1137).
+# Currently implemented VARs:
 
- - [Chan2020_Minn](@ref): BVAR with classical  Minnesota prior (homoscedastic fixed variance-covariance matrix) as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
+ - [Chan2020minn](@ref): BVAR with classical  Minnesota prior (homoscedastic fixed variance-covariance matrix) as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
 
- - [Chan2020_csv](@ref): BVAR with Minnesota prior and common stochastic volatility (csv) as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
+
+ - [Chan2020csv](@ref): BVAR with Minnesota prior and common stochastic volatility (csv) as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
+
+ 
+ - [BGR2010](@ref): BVAR with dummy observations as in Banbura, M., Giannone, D., and Reichlin, L. (2010), Large Bayesian vecotr auto regressions, _Journal of Applied Econometrics_, Vol 25(1), [doi.org/10.1002/jae.1137](https://doi.org/10.1002/jae.1137).
 
 Each model is contained in a separate function. See the documetnation for details. Note that notation follows the original reference. Consequently variable and parameter names are different across functions (e.g. $\lambda_1$ in one paper can be $c_1$ in another). 
 
 Some codes have been translated from Matlab, so there is a lot of room for optimization. 
 
-# Documentation for the models
-```@contents
-Pages = ["Banbura2010.md", "Chan2020_Minn.md", "Chan2020_csv.md"]
-Depth = 1
-```
+
+# Notes on the name
+- The name BEAVARs is an obvious play of words with a misspelled version of my favourite animal.
+
+- It is also a nod to the [BEAR Toolbox](https://www.ecb.europa.eu/press/research-publications/working-papers/html/bear-toolbox.en.html) - Bayesian  Estimation, Analysis and Regression, which is a powerful Matlab toolbox for estimating various VAR, BVAR, and Panel VAR models. While this is not an attempt to reach the size and scope of BEAR in the Julia ecosystem, there are some clear similarities in the idea of easy estimation of various models.
+
+- Finally, the name does not conform to the widely accepted convention of naming Julia packages (Capital letter followed by all lowercase) but it [doesn't break any rules either](https://pkgdocs.julialang.org/v1/creating-packages/#Package-naming-rules). It isn't the only package with more than one capita letter, e.g. FFT, CUDA, CSV etc. Also, because it's misspelled on purpose, the name Beaver.jl remains open, and if someone wants to use that we can still distinguish the packages BEAVARs.jl and Beavers.jl easily.
+
+
+#  Acknowledgmenets
+I would like to thank [Guillaume Dalle](https://github.com/gdalle), who, even though it is not associated with this package went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the [Julia discourse](https://discourse.julialang.org/) helped me often when I was struggling. This community is great.
+
 
 
 # References
@@ -30,13 +43,14 @@ Banbura, Marta, Giannone, Domenico and Reichlin, Lucrezia, (2010), Large Bayesia
 Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6)
 
 
-# Notes on the name
-The name BEAVARs is an obvious play of words with a misspelled version of my favourite animal.
 
-It is also a nod to the [BEAR Toolbox](https://www.ecb.europa.eu/press/research-publications/working-papers/html/bear-toolbox.en.html) - Bayesian  Estimation, Analysis and Regression, which is a powerful Matlab toolbox for estimating various VAR, BVAR, and Panel VAR models. While this is not an attempt to reach the size and scope of BEAR in the Julia ecosystem, there are some clear similarities in the idea of easy estimation of various models.
-
-It does not conform to the widely accepted convention of naming Julia packages (Capital letter followed by all lowercase) but it [doesn't break any rules either](https://pkgdocs.julialang.org/v1/creating-packages/#Package-naming-rules). It isn't the only package with more than one capita letter, e.g. FFT, CUDA, CSV etc. Also, because it's misspelled on purpose, the name Beaver.jl remains open, and if someone does that one could still distinguish the packages BEAVARs.jl and Beavers.jl easily.
+# How To Use
+Start with the manual
 
 
-#  Acknowledgmenets
-I would like to thank [Guillaume Dalle](https://github.com/gdalle), who, even though it is not associated with this package went out of his way to help me get my first steps in Github and Julia optimization. Also, many users in the Julia discourse helped me when I was struggling - this community is great.
+
+# Documentation for the models
+```@contents
+Pages = ["BGR2010.md", "Chan2020minn.md", "Chan2020csv.md"]
+Depth = 2
+```

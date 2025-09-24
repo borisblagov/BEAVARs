@@ -217,8 +217,12 @@ end
 
 
 function modelFit(out_strct,varSetup)
-    @unpack p = varSetup;
-    Y,X,T,n = BEAVARs.mlagL(out_strct.YY,p);
+    @unpack p, const_loc = varSetup;
+    if const_loc == 1
+        Y,X,T,n = BEAVARs.mlagL(out_strct.YY,p);
+    elseif const_loc == 0
+        Y,X,T,n = BEAVARs.mlag(out_strct.YY,p);
+    end
     Amed = reshape(percentile_mat(out_strct.store_β,0.5,dims=2),n*p+1,n)
     Yfit = X*Amed;
     Yact = @views Y

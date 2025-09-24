@@ -12,6 +12,16 @@ end
 
 
 @doc raw"""
+    Prepares the structure containg the data for Bayesian VAR using the BGR2010 type. Uses Time Arrays from the TimeSeries package
+"""
+function makeDataSetup(::BGR2010_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+    return dataBVAR_TA(data_tab, var_list)
+end
+
+
+
+
+@doc raw"""
 # makeDummiesMinn!(sigma::Vector{Float64},delta,lambda,n::Integer,p::Integer,Y_d1))
 
 Fills a matrix $Y_d$ and $X_d$ following eq. (5) in [Banbura, Giannone, Reichling (2010), JAE,
@@ -137,7 +147,13 @@ end
 
 
 
-# function BGR2010(Z::Matrix{Float64};lags::Integer=1,lambda::Float64=0.1,epsi::Float64=0.001,nburn::Integer=1000,nsave::Integer=2000)
+
+@doc raw"""
+# BGR2010(YY,set_strct,hyp_strct)
+
+Implements the BVAR with Minnesota prior with a SUR form and common stochastic volatilty (csv) following Chan (2020)
+
+"""
 function BGR2010(Z::Matrix{Float64},VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack lambda, epsi = hypSetup
     @unpack p, nsave, nburn = VARSetup
@@ -172,23 +188,6 @@ function BGR2010(Z::Matrix{Float64},VARSetup::BVARmodelSetup,hypSetup::BVARmodel
     # display("done")
 
     return store_beta, store_sigma;
-end
-
-
-function dispatchModel(::BGR2010_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello BGR2010")
-    intercept = 0;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_Σ = BGR2010(YY,set_strct,hyper_str);
-    out_strct = VAROutput_BGR2010(store_β,store_Σ,YY)
-    return out_strct, set_strct
 end
 
 

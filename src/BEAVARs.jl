@@ -51,14 +51,10 @@ struct hypDefault_strct <: BVARmodelHypSetup end    # empty structure for initia
 function selectModel(model_str::String)
     if model_str == "Chan2020csv"
         model_type = Chan2020csv_type()
-    elseif model_str == "Chan2020csv2"
-        model_type = Chan2020csv_type2()
     elseif model_str == "Chan2020minn"
         model_type = Chan2020minn_type()
     elseif model_str == "Chan2020iniw"
         model_type = Chan2020iniw_type()
-    elseif model_str == "Chan2020iniw2"
-        model_type = Chan2020iniw_type2()
     elseif model_str == "BGR2010"
         model_type = BGR2010_type()
     elseif model_str == "CPZ2024"
@@ -66,7 +62,7 @@ function selectModel(model_str::String)
     elseif model_str == "Blagov2025"
         model_type = Blagov2025_type()
     else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n    Chan2020iniw2\n")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n    Chan2020iniw\n CPZ2024\n")
     end
     return model_type
 end
@@ -99,55 +95,63 @@ Outputs
 end
 
 
+# Structure for the datasets for the standard BVARs
+@with_kw struct dataBVAR_TA <: BVARmodelDataSetup
+    data_tab::TimeArray                                             # data for the high-frequency variables
+    var_list::Array{Symbol,1}                                          # Symbol vector with the variable names, will be used for ordering
+end
+
+
 # ------------------------
 # MAIN FUNCTION 
-function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
-    model_type = BEAVARs.selectModel(model_str)
+# depreciated after moving to the syntax beavar(strcts)
+# function beavar(model_str=model_name::String,YY_tup... ;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
+#     model_type = BEAVARs.selectModel(model_str)
     
-    # checking if user supplied the hyperparameter structure
-    if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
-        hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
-    else                                            # else use supplied    
-        hyp_strct = hyp; # println("using the supplied parameters")
-    end
+#     # checking if user supplied the hyperparameter structure
+#     if isa(hyp,hypDefault_strct)                    # if not supplied, make a default one
+#         hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
+#     else                                            # else use supplied    
+#         hyp_strct = hyp; # println("using the supplied parameters")
+#     end
         
-    out_strct, set_strct = dispatchModel(model_type,YY_tup, hyp_strct,p,n_burn,n_save,n_irf,n_fcst);
-    return out_strct, set_strct, hyp_strct
-end
-
-
-function beavar(::CPZ2024_type, data_strct, hyp_strct, set_strct)
-    println("Hello CPZ2024")
-    @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
-end
-
-function beavar(::Chan2020minn_type, data_strct, hyper_str, set_strct)
-    println("Hello Minn")
-    YY = values(data_strct.data_tab);
-    store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
-    return out_strct, set_strct
-end
-
-
+#     out_strct, set_strct = dispatchModel(model_type,YY_tup, hyp_strct,p,n_burn,n_save,n_irf,n_fcst);
+#     return out_strct, set_strct, hyp_strct
+# end
 
 
 function makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
     model_type = BEAVARs.selectModel(model_str)
     # checking if user supplied the hyperparameter structure
     if isa(hyp,hypDefault_strct)                        # if not supplied, make a default one
-        hyp_strct = BEAVARs.makeHypSetup(model_type); # println("using the default hyperparameters")
+        hyp_strct = BEAVARs.makeHypSetup(model_type);   # println("using the default hyperparameters")
     else                                                # else use supplied    
         hyp_strct = hyp; # println("using the supplied parameters")
     end
 
-    intercept = 1;
+    intercept = BEAVARs.selectConstLoc(model_str);
     
     set_strct = BEAVARs.VARSetup(p,n_burn,n_save,n_irf,n_fcst,intercept);
     return model_type, hyp_strct, set_strct
+end
+
+function selectConstLoc(model_str::String)
+    if model_str == "Chan2020csv"
+        const_loc = 1
+    elseif model_str == "Chan2020minn"
+        const_loc = 1
+    elseif model_str == "Chan2020iniw"
+        const_loc = 1
+    elseif model_str == "BGR2010"
+        const_loc = 0
+    elseif model_str == "CPZ2024"
+        const_loc = 1
+    elseif model_str == "Blagov2025"
+        const_loc = 1
+    else
+        error("Constant location (right or left of X) is not defined for this model.\n Either define it in selectConstLoc function or report the bug")
+    end
+    return const_loc
 end
 
 
@@ -164,6 +168,56 @@ include("Chan2020csv.jl")
 include("CPZ2024.jl")
 include("Blagov2025.jl")
 
+
+#-------------------------------------
+# The Den: this is where the beavars live
+#-------------------------------------
+
+function beavar(::Chan2020minn_type, set_strct, hyper_str, data_strct)
+    println("Hello Minn")
+    YY = values(data_strct.data_tab);
+    store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
+    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
+    return out_strct, set_strct
+end
+
+
+
+@doc raw"""
+    Main function for csv
+"""
+function beavar(::Chan2020csv_type, set_strct, hyper_str, data_strct)
+    YY = values(data_strct.data_tab);
+    store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, store_eh = Chan2020csv(YY,set_strct,hyper_str);
+    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, store_eh,YY)
+    return out_strct, set_strct
+end
+
+function beavar(::Chan2020iniw_type, set_strct, hyper_str, data_strct)
+    println("Hello Independent Normal Inverse Wishart")
+    YY = values(data_strct.data_tab);
+    store_β, store_Σ = Chan2020iniw(YY,set_strct,hyper_str);
+    out_strct = VAROutput_Chan2020iniw(store_β,store_Σ,YY)
+    return out_strct, set_strct
+end
+
+
+function beavar(::CPZ2024_type, set_strct, hyp_strct, data_strct)
+    println("Hello CPZ2024")
+    @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    return out_strct, set_strct
+end
+
+
+function beavar(::BGR2010_type, set_strct, hyp_strct, data_strct)
+    println("Hello BGR2010")
+    YY = values(data_strct.data_tab);
+    store_β, store_Σ = BGR2010(YY,set_strct,hyp_strct);
+    out_strct = VAROutput_BGR2010(store_β,store_Σ,YY)
+    return out_strct, set_strct
+end
 
 
 #-------------------------------------

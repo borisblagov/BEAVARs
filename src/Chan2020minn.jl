@@ -10,7 +10,7 @@ end
     Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
 """
 function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
-    return dataChan2020(data_tab, var_list)
+    return dataBVAR_TA(data_tab, var_list)
 end
 
 
@@ -61,6 +61,8 @@ end
     YY::Array{}             #
 end
 
+
+
 #------------------------------
 # Forecasting block
 #------------------------------
@@ -89,24 +91,25 @@ function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
 end # end function fcastChan2020minn()
 
 
+# depreciated after moving to the syntax beavar(strcts)
 #------------------------------
 # dispatchModel block
 #------------------------------
-function dispatchModel(::Chan2020minn_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello Minn")
-    intercept = 1;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
-    return out_strct, set_strct
-end
+# function dispatchModel(::Chan2020minn_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
+#     println("Hello Minn")
+#     intercept = 1;
+#     if isa(YY_tup[1],Array{})
+#         YY = YY_tup[1];
+#     elseif isa(YY_tup[1],TimeArray{})
+#         YY_TA = YY_tup[1];
+#         YY = values(YY_TA)
+#         varList = colnames(YY_TA)
+#     end
+#     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+#     store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
+#     out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
+#     return out_strct, set_strct
+# end
 
 
 

@@ -6,51 +6,14 @@ function makeHypSetup(::Chan2020csv_type)
 end
 
 
-
-function makeHypSetup(::Chan2020csv_type2)
-    return hypChan2020()
-end
-
 @doc raw"""
     Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
 """
 function makeDataSetup(::Chan2020csv_type,data_tab::TimeArray; var_list =  colnames(data_tab))
-    return dataChan2020(data_tab, var_list)
+    return dataBVAR_TA(data_tab, var_list)
 end
 
 
-function dispatchModel(::Chan2020csv_type,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello csv")
-    intercept = 1;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, store_eh = Chan2020csv(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, store_eh,YY)
-    return out_strct, set_strct
-end
-
-
-function dispatchModel(::Chan2020csv_type2,YY_tup, hyper_str, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello csv2")
-    intercept = 1;
-    if isa(YY_tup[1],Array{})
-        YY = YY_tup[1];
-    elseif isa(YY_tup[1],TimeArray{})
-        YY_TA = YY_tup[1];
-        YY = values(YY_TA)
-        varList = colnames(YY_TA)
-    end
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, store_eh = BEAVARs.Chan2020csv2(YY,set_strct,hyper_str);
-    out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, store_eh,YY)
-    return out_strct, set_strct
-end
 
 
 @doc raw"""
