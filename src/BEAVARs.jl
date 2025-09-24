@@ -18,9 +18,9 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
 # from Chan_2020
 export prior_Minn, Chan2020minn, Chan2020csv, prior_NonConj
-export hypChan2020
+export hypChan2020, hypBGR2010
 
-export beavar, dispatchModel, makeOutput, makeSetup
+export beavar, makeOutput, makeSetup, makeHypSetup
 
 # Structures, to be uncommented later
 # export BVARmodelSetup, BVARmodelOutput, Chan2020csv_type, Chan2020minn_type, BVARmodelHypSetup, hypDefault_strct, outChan2020csv, BVARModelType, VARSetup
@@ -119,7 +119,23 @@ end
 #     return out_strct, set_strct, hyp_strct
 # end
 
+@doc raw"""
+    model_type, hyp_strct, set_strct = makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
 
+    Specify a model and generate structures for the VAR and the hyperparameters
+
+# Arguments
+    model_str: String, currently supported are "CPZ2024", "Chan2020minn", "Chan2020csv", "Chan2020iniw", "BGR2010"
+    p:         number of lags, default is 4
+    n_burn:    number of burn-in draws that will be discarded, default is 2000
+    n_save:    number of retained draws (total is then nburn + nsave), default is 1000
+    n_irf:     horizon of impulse responses, default is 16
+    n_fcst:    horizon of forecasting periods, default is 8
+    hyp:       hyperparameter structure. Default values are mostly fine. If you prefer your own call makeHypSetup
+
+
+See also [`hypChan2020`](@ref), [`hypBGR2010`](@ref).
+"""
 function makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
     model_type = BEAVARs.selectModel(model_str)
     # checking if user supplied the hyperparameter structure

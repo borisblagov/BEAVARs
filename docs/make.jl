@@ -5,8 +5,8 @@ makedocs(
     pages = [
         "index.md",
         "How To" => "Manual.md",
-        "Subsection" => [
-            "CPZ2024.md"
+        "Files" => [
+            "Constructors" => "Constructors.md"
         ]
     ]
 )

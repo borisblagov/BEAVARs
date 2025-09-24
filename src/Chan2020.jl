@@ -3,6 +3,15 @@
 
 
 # Structure for the hyperparameters for the models
+@doc raw"""
+    hypChan2020()
+
+    Populate a hyperparamater structure for models based on Chan (2020) priors 
+        
+# Arguments
+        c1:
+        c2:
+"""
 @with_kw struct hypChan2020 <: BVARmodelHypSetup
     c1::Float64     = 0.04; # hyperparameter on own lags
     c2::Float64     = 0.01; # hyperparameter on other lags
@@ -18,7 +27,7 @@
 end
 
 
-"""
+@doc raw"""
     Xsur = SUR_form(X,n)
 
     Creates a sparse matrix in a form for Seemingly Unrelated Regression (SUR). 
@@ -38,7 +47,7 @@ function SUR_form(X,n)
 end
 
 
-"""
+@doc raw"""
     Xsur, Xsur_CI, X_CI = SUR_form_dense(X,n)
 
     Creates matrix in a form for Seemingly Unrelated Regression (SUR). 

@@ -5,6 +5,34 @@ function makeHypSetup(::BGR2010_type)
     return hypBGR2010()
 end
 
+@doc raw"""
+    hypBGR2010()
+
+    Generate a structure with hyperparameters for Banbura, Giannone, and Reichlin (2010) Large Bayesian VARs
+
+# Arguments
+    lambda: shrinkage parameter between AR(1) model and maximum likelihood. Default 0.1
+    epsi:
+
+# Examples 
+
+- Using default values. Note that the main function will auto-generate this for you. If you don't plan to change any there is rarely need to ever call it.
+```julia-repl
+julia> hyp = hypBGR2010()
+hypBGR2010
+  lambda: Float64 0.1
+  epsi: Float64 0.001
+```
+
+- If a tighter prior (shrinkage towards AR(1)) is desired due to a larger VAR: 
+```julia-repl
+julia> hyp = hypBGR2010(lambda=0.05)
+hypBGR2010
+  lambda: Float64 0.05
+  epsi: Float64 0.001
+```
+
+"""
 @with_kw struct hypBGR2010 <: BVARmodelHypSetup
     lambda::Float64     = 0.1; # hyperparameter shrinkage between AR(1) and OLS
     epsi::Float64     = 0.001; # hyperparameter on the constant
