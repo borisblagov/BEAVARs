@@ -3,8 +3,8 @@ using Documenter, BEAVARs
 makedocs(
     sitename="Documentation",
     pages = [
-        "index.md",
-        "How To" => "Manual.md",
+        "Overview" => "index.md",
+        "Introduction" => "introduction.md",
         "Files" => [
             "Constructors" => "Constructors.md"
         ]
