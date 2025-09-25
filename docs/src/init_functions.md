@@ -1,5 +1,4 @@
-# Additional functions
-
+# Initialization functions functions
 
 ```@docs
 ols(Y,X)

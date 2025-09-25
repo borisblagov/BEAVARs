@@ -1,12 +1,12 @@
-function makeHypSetup(::CPZ2024_type)
+function makeHypSetup(::CPZ2023_type)
     return hypChan2020()
 end
 
 # Structure for the datasets and the frequency mix
 @doc raw"""
-    dataCPZ2024(data_HF::TimeArray,data_LF::TimeArray,aggMix::Int,var_list::Array{Symbol,1})
+    dataCPZ2023(data_HF::TimeArray,data_LF::TimeArray,aggMix::Int,var_list::Array{Symbol,1})
 
-generate a dataset strcture for use with CPZ2024 model
+generate a dataset strcture for use with CPZ2023 model
 
 # Arguments
     dataHF_tab: TimeArray with your high-frequency variables (monthly or quarterly, respectively)
@@ -16,7 +16,7 @@ generate a dataset strcture for use with CPZ2024 model
 
 See also `makeDataSetup`.
 """
-@with_kw struct dataCPZ2024 <: BVARmodelDataSetup
+@with_kw struct dataCPZ2023 <: BVARmodelDataSetup
     dataHF_tab::TimeArray                                       # data for the high-frequency variables
     dataLF_tab::TimeArray                                       # data for the low-frequency variables
     aggMix::Int                                                 # 0: growth rates, 1: log-levels. indicator for the aggregate weights in the inter-temporal aggregation
@@ -26,8 +26,8 @@ end
 @doc raw"""
     Prepare the structure containg the data for the mixed-frequency VAR. Uses Time Arrays from the TimeSeries package
 """
-function makeDataSetup(::CPZ2024_type,dataHF_tab::TimeArray, dataLF_tab::TimeArray, aggMix::Int; var_list =  [colnames(dataHF_tab); colnames(dataLF_tab)])
-    return dataCPZ2024(dataHF_tab, dataLF_tab, aggMix, var_list)
+function makeDataSetup(::CPZ2023_type,dataHF_tab::TimeArray, dataLF_tab::TimeArray, aggMix::Int; var_list =  [colnames(dataHF_tab); colnames(dataLF_tab)])
+    return dataCPZ2023(dataHF_tab, dataLF_tab, aggMix, var_list)
 end
 
 
@@ -304,7 +304,7 @@ end
 @doc raw"""
     Estimate Chan, Zhu, Poon 2024 using a  Minnesota-based independent Normal-Wishart prior
 """
-function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
+function CPZ2023(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
     @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
     nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
@@ -357,7 +357,7 @@ function CPZ2024(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
 end
 
 
-function CPZ2024n(YYwNA, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames,varSetup,hypSetup)
+function CPZ2023n(YYwNA, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames,varSetup,hypSetup)
     @unpack p, nburn,nsave, const_loc = varSetup
     ndraws = nsave+nburn;
     nmdraws = 10;               # given a draw from the parameters to draw multiple time from the distribution of the missing data for better confidence intervals
@@ -413,7 +413,7 @@ end
 """
     Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, intercept, K_β, beta,  = CPZ_initMinn(YY,p)
 
-    Initializes matrices for using the Minnesota prior in the CPZ2024 framework
+    Initializes matrices for using the Minnesota prior in the CPZ2023 framework
 """
 function CPZ_initMinn(YY,p)
     Y, X, T, n, intercept       = mlagL(YY,p);
@@ -434,7 +434,7 @@ end
 
 #------------------------------
 # Output structure
-@with_kw struct VAROutput_CPZ2024 <: BVARmodelOutput
+@with_kw struct VAROutput_CPZ2023 <: BVARmodelOutput
     store_β::Array{}        # 
     store_Σt_inv::Array{}        # 
     store_YY::Array{}
@@ -447,8 +447,8 @@ end
 #------------------------------
 
 #--------------------------------------
-# Forecast CPZ2024
-function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
+# Forecast CPZ2023
+function forecast(VAROutput::VAROutput_CPZ2023,VARSetup)
     @unpack store_β, store_Σt, store_YY = VAROutput
     @unpack n_fcst,p,nsave = VARSetup
 
@@ -474,7 +474,7 @@ function forecast(VAROutput::VAROutput_CPZ2024,VARSetup)
     end
     return Yfor3D
 
-end # end function fcastCPZ2024()
+end # end function fcastCPZ2023()
 
 
 

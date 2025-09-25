@@ -5,8 +5,13 @@ makedocs(
     pages = [
         "Overview" => "index.md",
         "Introduction" => "introduction.md",
-        "Files" => [
+        "Models" => [
+            "Chan2020minn" => "Chan2020minn.md"
+            "Chan2020iniw" => "Chan2020iniw.md"
+        ],
+        "File library" => [
             "Constructors" => "Constructors.md"
+            "Initialization" => "init_functions.md"
         ]
     ]
 )

@@ -12,6 +12,8 @@ data_de = data_ta_full[YYlist];
 var_names = colnames(data_de)
 YY = values(data_de);
 
+YY = rand(30,3)
+
 model_type, hyp_strct, set_strct = makeSetup("BGR2010",n_burn=1000;n_save=1000)
 data_strct = BEAVARs.makeDataSetup(model_type,data_de,var_list=var_names)
 out_strct_minn, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
@@ -31,21 +33,22 @@ out_strct_bgr, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=nsave,n_burn=nbu
 
 ###
 dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
-model_type, hyp_strct, set_strct = makeSetup("CPZ2024",n_burn=10;n_save=10)
+model_type, hyp_strct, set_strct = makeSetup("CPZ2023",n_burn=10;n_save=10)
 data_strct = BEAVARs.makeDataSetup(model_type,dataHF_tab, dataLF_tab,0)
-
+out_strct_cpz, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
+beavar()
 
 
 
 ###
 
 var_no = 2
-Yfit, Yact = BEAVARs.modelFit(out_strct_minn,varSetup);
+Yfit, Yact = BEAVARs.modelFit(out_strct_cpz,varSetup);
 plot([Yfit[:,var_no],Yact[:,var_no]]*100)
 Yfit, Yact = BEAVARs.modelFit(out_strct_csv,varSetup);
 plot([Yfit[:,var_no],Yact[:,var_no]]*100)
 
-Yfor3D = BEAVARs.forecast(out_strct2,varSetup2)
+Yfor3D = BEAVARs.forecast(out_strct_cpz,varSetup)
 
 
 Yfor_low1 = percentile_mat(Yfor3D,0.05,dims=3);

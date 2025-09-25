@@ -43,7 +43,7 @@ struct Chan2020iniw_type2 <: BVARmodelType end
 struct Chan2020csv_type <: BVARmodelType end
 struct Chan2020csv_type2 <: BVARmodelType end
 struct BGR2010_type <: BVARmodelType end
-struct CPZ2024_type <: BVARmodelType end
+struct CPZ2023_type <: BVARmodelType end
 struct Blagov2025_type <: BVARmodelType end
 struct hypDefault_strct <: BVARmodelHypSetup end    # empty structure for initialising the hyperparameters
 
@@ -57,12 +57,12 @@ function selectModel(model_str::String)
         model_type = Chan2020iniw_type()
     elseif model_str == "BGR2010"
         model_type = BGR2010_type()
-    elseif model_str == "CPZ2024"
-        model_type = CPZ2024_type()
+    elseif model_str == "CPZ2023"
+        model_type = CPZ2023_type()
     elseif model_str == "Blagov2025"
         model_type = Blagov2025_type()
     else
-        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n    Chan2020iniw\n CPZ2024\n")
+        error("Model not found, make sure the spelling is completely correct, upper and lowercase matters!\n Possible models are: \n    BGR2010 \n    Chan2020minn\n    Chan2020csv\n    Chan2020iniw\n CPZ2023\n")
     end
     return model_type
 end
@@ -127,7 +127,7 @@ Specify a model and generate structures for the Bayesian VAR and the hyperparame
 Only the first argument is mandatory, rest is optional with default values.
 
 # Arguments
-    model_str: String, currently supported are "CPZ2024", "Chan2020minn", "Chan2020csv", "Chan2020iniw", "BGR2010"
+    model_str: String, currently supported are "CPZ2023", "Chan2020minn", "Chan2020csv", "Chan2020iniw", "BGR2010"
     p:         number of lags, default is 4
     n_burn:    number of burn-in draws that will be discarded, default is 2000
     n_save:    number of retained draws (total is then nburn + nsave), default is 1000
@@ -162,7 +162,7 @@ function selectConstLoc(model_str::String)
         const_loc = 1
     elseif model_str == "BGR2010"
         const_loc = 0
-    elseif model_str == "CPZ2024"
+    elseif model_str == "CPZ2023"
         const_loc = 1
     elseif model_str == "Blagov2025"
         const_loc = 1
@@ -183,7 +183,7 @@ include("Chan2020.jl")
 include("Chan2020minn.jl")
 include("Chan2020iniw.jl")
 include("Chan2020csv.jl")
-include("CPZ2024.jl")
+include("CPZ2023.jl")
 include("Blagov2025.jl")
 
 
@@ -220,11 +220,11 @@ function beavar(::Chan2020iniw_type, set_strct, hyper_str, data_strct)
 end
 
 
-function beavar(::CPZ2024_type, set_strct, hyp_strct, data_strct)
-    println("Hello CPZ2024")
+function beavar(::CPZ2023_type, set_strct, hyp_strct, data_strct)
+    println("Hello CPZ2023")
     @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2024(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
-    out_strct = VAROutput_CPZ2024(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
     return out_strct, set_strct
 end
 

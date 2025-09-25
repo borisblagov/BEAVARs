@@ -9,8 +9,11 @@
 Populate a hyperparamater structure for models based on Chan (2020) priors 
         
 # Arguments
-        c1:
-        c2:
+        c1: hyperparameter on own lags 
+        c2: hyperparameter on other lags
+        c3: hyperparameter on the constant
+        ρ:  ar(1) parameter for the stochastic volatility (Chan2020csv only)
+        σ_h2: variance of the log-volatility (Chan2020csv only)
 """
 @with_kw struct hypChan2020 <: BVARmodelHypSetup
     c1::Float64     = 0.04; # hyperparameter on own lags

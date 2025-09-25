@@ -143,7 +143,7 @@ end
 """
     Y, X, T, deltaP, sigmaP, mu_prior, V_Minn_inv, V_Minn_inv_elview, XtΣ_inv_den, XtΣ_inv_X, Xsur_den, Xsur_CI, X_CI, k, intercept, K_β, beta,  = CPZ_initMinn(YY,p)
 
-    Initializes matrices for using the Minnesota prior in the CPZ2024 framework
+    Initializes matrices for using the Minnesota prior in the CPZ2023 framework
 """
 function Blagov2025_initcsv(YY,p,hypSetup)
     Y, X, T, n, intercept       = mlagL(YY,p);
@@ -251,7 +251,7 @@ end
 #     end
 #     return Yfor3D
 
-# end # end function fcastCPZ2024()
+# end # end function fcastCPZ2023()
 
 
 """
