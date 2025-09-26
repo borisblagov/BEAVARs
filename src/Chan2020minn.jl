@@ -16,7 +16,7 @@ end
 
 
 @doc raw"""
-# Chan2020minn(YY,VARSetup,hypSetup)
+    Chan2020minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 

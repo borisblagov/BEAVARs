@@ -121,7 +121,7 @@ end
 
 @doc raw"""
     model_type, hyp_strct, set_strct = makeSetup(model_str::String; p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
-
+    
 Specify a model and generate structures for the Bayesian VAR and the hyperparameters.
 
 Only the first argument is mandatory, rest is optional with default values.

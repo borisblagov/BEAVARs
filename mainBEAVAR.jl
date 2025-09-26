@@ -18,25 +18,14 @@ model_type, hyp_strct, set_strct = makeSetup("BGR2010",n_burn=1000;n_save=1000)
 data_strct = BEAVARs.makeDataSetup(model_type,data_de,var_list=var_names)
 out_strct_minn, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
 
-
-
 model_type, hyp_strct, set_strct = makeSetup("Chan2020iniw",n_burn=10;n_save=10)
-
-
-nsave = 100; nburn = 100;
-out_strct_minn, varSetup,hypSetup = beavar("Chan2020minn",YY,n_save=nsave,n_burn=nburn);
-out_strct_iniw, varSetup,hypSetup = beavar("Chan2020iniw",YY,n_save=nsave,n_burn=nburn);
-out_strct_csv2, varSetup,hypSetup = beavar("Chan2020csv2",YY,n_save=nsave,n_burn=nburn);
-out_strct_csv, varSetup,hypSetup = beavar("Chan2020csv",YY,n_save=nsave,n_burn=nburn);
-out_strct_bgr, varSetup2,hypSetup2 = beavar("BGR2010",YY,n_save=nsave,n_burn=nburn);
-
 
 ###
 dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250703","data/Specifications_mfvar.xlsx");
 model_type, hyp_strct, set_strct = makeSetup("CPZ2023",n_burn=10;n_save=10)
 data_strct = BEAVARs.makeDataSetup(model_type,dataHF_tab, dataLF_tab,0)
 out_strct_cpz, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
-beavar()
+
 
 
 
