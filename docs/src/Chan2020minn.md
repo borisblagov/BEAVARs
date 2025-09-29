@@ -10,7 +10,7 @@ julia> using Dates     # these are required only for the example, your data may 
 
 Next we will create the setup for the VAR model using the `makeSetup()` function. The function needs a string to know which structures to initialize. For this model it is "Chan2020minn". 
 
-We will use default values for the VAR setup  but will change the number of lags `p=2` and we will have a very small `burn in = 20` and `n_save = 50`. We will not change any hyperparameters, therefore not pass any structure `hyp`to the function `makeSetup`
+We will use default values for the VAR setup  but will change the number of lags `p=2` and we will have a very small `burn in = 20` and `n_save = 50`. We will not change any hyperparameters, therefore not pass any structure `hyp` to the function `makeSetup`
 
 ```
 julia> model_type, hyp_strct, set_strct = makeSetup("Chan2020minn";n_burn=20,n_save=50,p=2)

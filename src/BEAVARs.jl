@@ -20,7 +20,7 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, Chan2020minn, Chan2020csv, prior_NonConj
 export hypChan2020, hypBGR2010
 
-export beavar, makeOutput, makeSetup, makeHypSetup
+export beavar, makeOutput, makeSetup, makeHypSetup, makeDataSetup
 
 # Structures, to be uncommented later
 # export BVARmodelSetup, BVARmodelOutput, Chan2020csv_type, Chan2020minn_type, BVARmodelHypSetup, hypDefault_strct, outChan2020csv, BVARModelType, VARSetup
@@ -45,6 +45,8 @@ struct Chan2020csv_type2 <: BVARmodelType end
 struct BGR2010_type <: BVARmodelType end
 struct CPZ2023_type <: BVARmodelType end
 struct Blagov2025_type <: BVARmodelType end
+
+# Default structure for hyperparameters
 struct hypDefault_strct <: BVARmodelHypSetup end    # empty structure for initialising the hyperparameters
 
 
@@ -202,13 +204,13 @@ end
 
 
 @doc raw"""
-    Main function for csv
+    Main function for Chan2020csv
 """
 function beavar(::Chan2020csv_type, set_strct, hyper_str, data_strct)
     YY = values(data_strct.data_tab);
     store_β, store_h, store_Σ, s2_h_store, store_ρ, store_σ_h2, store_eh = Chan2020csv(YY,set_strct,hyper_str);
     out_strct = VAROutput_Chan2020csv(store_β,store_Σ,store_h,s2_h_store, store_ρ, store_σ_h2, store_eh,YY)
-    return out_strct, set_strct
+    return out_strct
 end
 
 function beavar(::Chan2020iniw_type, set_strct, hyper_str, data_strct)
@@ -216,7 +218,7 @@ function beavar(::Chan2020iniw_type, set_strct, hyper_str, data_strct)
     YY = values(data_strct.data_tab);
     store_β, store_Σ = Chan2020iniw(YY,set_strct,hyper_str);
     out_strct = VAROutput_Chan2020iniw(store_β,store_Σ,YY)
-    return out_strct, set_strct
+    return out_strct
 end
 
 
@@ -225,7 +227,19 @@ function beavar(::CPZ2023_type, set_strct, hyp_strct, data_strct)
     @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
     store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
     out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
-    return out_strct, set_strct
+    return out_strct
+end
+
+
+@doc raw"""
+    Main function for Blagov2025
+"""
+function beavar(::Blagov2025_type, set_strct, hyp_strct, data_strct)
+    println("Hello Blagov2025")
+    @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = Blagov2025(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    return out_strct
 end
 
 
@@ -234,7 +248,7 @@ function beavar(::BGR2010_type, set_strct, hyp_strct, data_strct)
     YY = values(data_strct.data_tab);
     store_β, store_Σ = BGR2010(YY,set_strct,hyp_strct);
     out_strct = VAROutput_BGR2010(store_β,store_Σ,YY)
-    return out_strct, set_strct
+    return out_strct
 end
 
 

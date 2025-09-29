@@ -1,5 +1,5 @@
 function fanChart(toPlot_mat)
-    prct_dim = length(size(toPlot_mat)); # the dimension with the draws (always theh last)
+    prct_dim = length(size(toPlot_mat)); # the dimension with the draws (always the last)
     if prct_dim == 3
         n=size(toPlot_mat,2);
     elseif prct_dim ==2

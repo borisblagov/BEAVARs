@@ -83,3 +83,42 @@ Yfor3D, hfor3D = fcastChan2020_LBA_csv(YY,setup_str, store_beta, store_h,store_Î
 Yfor_med = median(Yfor3D,dims=3)
 
 plot(Yfor_med[:,4])
+
+
+### 29.09.2025
+
+using BEAVARs, TimeSeries
+using Dates     # these are required only for the example, your data may already have a time-series format
+
+
+# Blagov2025
+model_type, hyp_strct, set_strct = makeSetup("Blagov2025",n_burn=20;n_save=50,p=2)
+dataHF_tab, dataLF_tab, varList = BEAVARs.readSpec("bg_L250911","data/Specifications_mfvar.xlsx");
+data_strct = makeDataSetup(model_type,dataHF_tab, dataLF_tab,0)
+out_strct = beavar(model_type,set_strct,hyp_strct,data_strct)
+
+using Plots, Parameters
+propertynames(out_strct)
+@unpack M_zsp, store_YY, z_vec, Sm_bit = out_strct
+YY_slice = out_strct.store_YY[:,:,20]
+plot(M_zsp*YY_slice'[Sm_bit])
+
+YY_HF_med = percentile_mat(out_strct.store_YY,0.5,dims=3);
+plot(M_zsp*YY_HF_med'[Sm_bit])
+plot!(z_vec)
+
+f(store_YY_slice) = M_zsp*store_YY_slice'[Sm_bit];
+
+Ao = mapslices(x->M_zsp*x[Sm_bit'],store_YY,dims=3)
+
+
+#MWE
+sb = [true false false; false false false; true true true]
+Mz = [0 1/3 1/3 1/3]
+yh = rand(3,3,3)
+
+Mz*yh[:,:,1]'[sb]
+Mz*yh[:,:,2]'[sb]
+Mz*yh[:,:,3]'[sb]
+
+mapslices(x->Mz*x'[sb],yh,dims=3)

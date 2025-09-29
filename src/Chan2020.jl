@@ -23,7 +23,7 @@ Populate a hyperparamater structure for models based on Chan (2020) priors
     σ_h2::Float64   = 0.1;
     v_h0::Float64    = 5.0; 
     S_h0::Float64    = 0.01*(v_h0-1.0); 
-    ρ_0::Float64     = 0.9; 
+    ρ_0::Float64     = 0.9; # prior for ρ_0, the t=0 value of the autoregressive coefficient
     V_ρ::Float64     = 0.04;
     q::Float64       = 0.5;
     nu0::Int         = 3;   # degrees of freedom to add for the inverse wishart distribution of the variance-covariance matrices
