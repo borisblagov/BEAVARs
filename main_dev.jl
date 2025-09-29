@@ -121,4 +121,4 @@ Mz*yh[:,:,1]'[sb]
 Mz*yh[:,:,2]'[sb]
 Mz*yh[:,:,3]'[sb]
 
-mapslices(x->Mz*x'[sb],yh,dims=3)
+mapslices(x->Mz*x'[sb],yh,dims=(2:3))

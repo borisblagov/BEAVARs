@@ -91,6 +91,31 @@ function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
 end # end function fcastChan2020minn()
 
 
+function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup,trueYY)
+    @unpack store_β, store_Σ, YY = VAROutput
+    @unpack n_fcst,p,nsave = VARSetup
+    n = size(YY,2);
+
+    Yfor3D    = fill(NaN,(p+n_fcst,n,nsave))
+    Yfor3D[1:p,:,:] .= @views YY[end-p+1:end,:];
+    
+    for i_draw = 1:nsave
+        Yfor = @views Yfor3D[:,:,i_draw];
+        A_draw = @views reshape(store_β[:,i_draw],n*p+1,n);
+        Σ_draw = @views reshape(store_Σ[:,i_draw],n,n);
+                
+        for i_for = 1:n_fcst
+            tclass = @views vec(reverse(Yfor[1+i_for-1:p+i_for-1,:],dims=1)')
+            tclass = [1;tclass];
+            Yfor[p+i_for,:]=tclass'*A_draw  .+ (cholesky(Σ_draw).U*randn(n,1))';    
+        end
+    end
+
+    MSE_t_mat = dropdims(mean((Yfor3D.-trueYY).^2,dims=3),dims=3)
+    return Yfor3D, MSE_t_mat
+
+end # end function fcastChan2020minn()
+
 # depreciated after moving to the syntax beavar(strcts)
 #------------------------------
 # dispatchModel block

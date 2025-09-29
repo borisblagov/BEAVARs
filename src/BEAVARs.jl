@@ -5,6 +5,7 @@ using   LinearAlgebra,
         TimeSeries, 
         Parameters,
         ProgressMeter,
+        Plots,
         XLSX
 
 # from init_functions.jl
@@ -187,6 +188,7 @@ include("Chan2020iniw.jl")
 include("Chan2020csv.jl")
 include("CPZ2023.jl")
 include("Blagov2025.jl")
+include("plot_functions.jl")
 
 
 #-------------------------------------
@@ -198,7 +200,7 @@ function beavar(::Chan2020minn_type, set_strct, hyper_str, data_strct)
     YY = values(data_strct.data_tab);
     store_β, store_Σ = Chan2020minn(YY,set_strct,hyper_str);
     out_strct = VAROutput_Chan2020minn(store_β,store_Σ,YY)
-    return out_strct, set_strct
+    return out_strct
 end
 
 
