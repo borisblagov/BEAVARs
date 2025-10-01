@@ -34,6 +34,7 @@ abstract type BVARmodelType end         # types for models
 abstract type BVARmodelSetup end        # type for VAR setup parameters
 abstract type BVARmodelHypSetup end     # types for hyperparameters
 abstract type BVARmodelDataSetup end    # types for storing the data unputs to the models
+abstract type BVARmodelLoopSetup end        # type for VAR setup parameters
 abstract type BVARmodelOutput end       # type for output storage
 
 
@@ -88,13 +89,11 @@ Populates the constructor VARSetup with default and/or custom values.
 # Output
     VARSetup: the setup structure for the BEAVARs
 """
-@with_kw struct VARSetup <: BVARmodelSetup
-    p::Int          # number of lags
-    nsave::Int      # gibbs to save
-    nburn::Int      # gibbs to burn
-    n_irf::Int      # number of impulse responses
-    n_fcst::Int     # number of forecast periods
-    const_loc::Int  # location of the constant
+@with_kw struct LoopSetup <: BVARmodelLoopSetup
+    model::model_type
+    set::BVARmodelSetup
+    hyp::BVARmodelHypSetup
+    data::BVARmodelDataSetup
 end
 
 
@@ -102,6 +101,15 @@ end
 @with_kw struct dataBVAR_TA <: BVARmodelDataSetup
     data_tab::TimeArray                                             # data for the high-frequency variables
     var_list::Array{Symbol,1}                                          # Symbol vector with the variable names, will be used for ordering
+end
+
+@with_kw struct VARSetup <: BVARmodelSetup
+    p::Int          # number of lags
+    nsave::Int      # gibbs to save
+    nburn::Int      # gibbs to burn
+    n_irf::Int      # number of impulse responses
+    n_fcst::Int     # number of forecast periods
+    const_loc::Int  # location of the constant
 end
 
 

@@ -21,3 +21,10 @@ YYfcastErr_mat[9,:,2]= fill(NaN,3,)
 _nanfunc(f, A, ::Colon) = f(filter(!isnan, A))
 _nanfunc(f, A, dims) = mapslices(a->_nanfunc(f,a,:), A, dims=dims)
 nanfunc(f, A; dims=:) = _nanfunc(f, A, dims)
+
+
+ d = Dict()
+d["model"] = model_type
+d["hyp"] = hyp_strct
+d["set"] = set_strct
+d["data"] = data_strct
