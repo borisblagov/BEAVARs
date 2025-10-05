@@ -6,7 +6,8 @@ using   LinearAlgebra,
         Parameters,
         ProgressMeter,
         Plots,
-        XLSX
+        XLSX,
+        BenchmarkTools
 
 # from init_functions.jl
 export mlag, mlagL, mlagL!, ols, percentile_mat
@@ -21,7 +22,7 @@ export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 export prior_Minn, Chan2020minn, Chan2020csv, prior_NonConj
 export hypChan2020, hypBGR2010
 
-export beavar, makeOutput, makeSetup, makeHypSetup, makeDataSetup
+export beavar, beavars, makeOutput, makeSetup, makeHypSetup, makeDataSetup, LoopSetup
 
 # Structures, to be uncommented later
 # export BVARmodelSetup, BVARmodelOutput, Chan2020csv_type, Chan2020minn_type, BVARmodelHypSetup, hypDefault_strct, outChan2020csv, BVARModelType, VARSetup
@@ -76,21 +77,10 @@ end
 # structure initializing the VAR
 # Constructor
 @doc raw"""
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,const_loc);
-
-Populates the constructor VARSetup with default and/or custom values.
-# Arugments
-    p:      number of lags, default is 4
-    nburn:  number of burn-in draws that will be discarded, default is 2000
-    nsave:  number of retained draws (total is then nburn + nsave), default is 1000
-    n_irf:  horizon of impulse responses, default is 16
-    n_fcst: horizon of forecasting periods, default is 8
-
-# Output
-    VARSetup: the setup structure for the BEAVARs
+    
 """
 @with_kw struct LoopSetup <: BVARmodelLoopSetup
-    model::model_type
+    model::BVARmodelType
     set::BVARmodelSetup
     hyp::BVARmodelHypSetup
     data::BVARmodelDataSetup
@@ -162,6 +152,15 @@ function makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,
     
     set_strct = BEAVARs.VARSetup(p,n_burn,n_save,n_irf,n_fcst,intercept);
     return model_type, hyp_strct, set_strct
+end
+
+function unpackLoopSetup(loop_strct::BVARmodelLoopSetup)
+    @unpack model, set, hyp, data,  = loop_strct 
+    model_type = model;
+    set_strct = set;
+    hyp_strct = hyp;
+    data_strct = data;
+    return model_type, set_strct, hyp_strct, data_strct
 end
 
 function selectConstLoc(model_str::String)
@@ -261,6 +260,21 @@ function beavar(::BGR2010_type, set_strct, hyp_strct, data_strct)
     return out_strct
 end
 
+function beavars(vint_in_dict::Dict)
+    vint_out_dict = Dict{String,BEAVARs.BVARmodelOutput}()
+    fcast_out_dict = Dict{String,Array{Float64, 3}}()
+    for (index, value) in pairs(vint_in_dict)
+        # println("$index $value")
+        println("Estimating data vintage $index")
+        model_type, set_strct, hyp_strct, data_strct = BEAVARs.unpackLoopSetup(value)
+        out_strct = beavar(model_type, set_strct, hyp_strct, data_strct)
+        YYfcast3D_mat = BEAVARs.forecast(out_strct,set_strct)
+        vint_out_dict[index] = out_strct
+        fcast_out_dict[index] = YYfcast3D_mat
+    end
+    
+    return vint_out_dict, fcast_out_dict
+end
 
 #-------------------------------------
 end # END OF MODULE

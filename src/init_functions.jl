@@ -228,3 +228,12 @@ function modelFit(out_strct,varSetup)
     Yact = @views Y
     return Yfit, Yact
 end
+
+
+
+_nanfunc(f, A, ::Colon) = f(filter(!isnan, A))
+_nanfunc(f, A, dims) = mapslices(a->_nanfunc(f,a,:), A, dims=dims)
+nanfunc(f, A; dims=:) = _nanfunc(f, A, dims)
+
+
+

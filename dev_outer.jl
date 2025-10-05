@@ -5,13 +5,18 @@ using Dates     # these are required only for the example, your data may already
 model_type, hyp_strct, set_strct = makeSetup("Chan2020minn",n_burn=20;n_save=50,p=2)
 data = TimeArray(DateTime(2020,1,1):Quarter(1):DateTime(2027,4,1),rand(30,3));
 data_strct = BEAVARs.makeDataSetup(model_type,data);
-out_strct = beavar(model_type, set_strct, hyp_strct, data_strct)
 
-propertynames(out_strct)
+loop_strct = LoopSetup(model_type,set_strct,hyp_strct,data_strct)
 
-trueYY = rand(10,3)
-trueYY[10,:] = fill(NaN,3,)
-YYfcast3D_mat = BEAVARs.forecast(out_strct,set_strct)
+vint_dict = Dict{String,BEAVARs.BVARmodelLoopSetup}()
+vint_dict["v2"] = loop_strct
+vint_dict["v1"] = loop_strct
+
+vint_out_dict, fcast_out_dict = beavars(vint_dict)
+
+out_strct = vint_out_dict["v1"]
+fcast_mat = fcast_out_dict["v1"]
+
 
 YYfcastErr_tph = dropdims(trueYY.-mean(YYfcast3D_mat,dims=3),dims=3)
 
@@ -23,8 +28,3 @@ _nanfunc(f, A, dims) = mapslices(a->_nanfunc(f,a,:), A, dims=dims)
 nanfunc(f, A; dims=:) = _nanfunc(f, A, dims)
 
 
- d = Dict()
-d["model"] = model_type
-d["hyp"] = hyp_strct
-d["set"] = set_strct
-d["data"] = data_strct

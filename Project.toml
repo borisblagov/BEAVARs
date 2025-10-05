@@ -4,6 +4,7 @@ authors = ["Boris Blagov <46528899+borisblagov@users.noreply.github.com> and con
 version = "0.1.0"
 
 [deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
@@ -18,6 +19,7 @@ TimeSeries = "9e3dc215-6440-5c97-bce1-76c03772f85e"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 
 [compat]
+BenchmarkTools = "1.6.0"
 Dates = "1.11.0"
 Distributions = "0.25.118"
 Documenter = "1.9.0"
