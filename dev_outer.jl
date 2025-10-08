@@ -23,8 +23,3 @@ YYfcastErr_tph = dropdims(trueYY.-mean(YYfcast3D_mat,dims=3),dims=3)
 YYfcastErr_mat = repeat(YYfcastErr_tph,inner=(1,1,2))
 YYfcastErr_mat[9,:,2]= fill(NaN,3,)
 
-_nanfunc(f, A, ::Colon) = f(filter(!isnan, A))
-_nanfunc(f, A, dims) = mapslices(a->_nanfunc(f,a,:), A, dims=dims)
-nanfunc(f, A; dims=:) = _nanfunc(f, A, dims)
-
-
