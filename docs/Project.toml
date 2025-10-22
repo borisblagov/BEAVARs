@@ -1,0 +1,6 @@
+[deps]
+BEAVARs = "93a03eec-7b33-4fd3-aded-846a82f4850b"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+DocumenterTools = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
+LiveServer = "16fef848-5104-11e9-1b77-fb7a48bbb589"
+TimeSeries = "9e3dc215-6440-5c97-bce1-76c03772f85e"

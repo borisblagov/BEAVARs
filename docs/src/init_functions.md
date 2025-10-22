@@ -1,0 +1,17 @@
+# Initialization functions functions
+
+```@docs
+ols(Y,X)
+```
+
+```@docs
+mlag(Yfull::Matrix{Float64},p::Integer)
+```
+
+```@docs
+trainPriors(Z0::Matrix{Float64},p::Int64)
+```
+
+```@percentile_mat
+percentile_mat(A, p; dims)
+```
