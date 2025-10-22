@@ -40,7 +40,9 @@ end
 
 
 @doc raw"""
-    Prepares the structure containg the data for Bayesian VAR using the BGR2010 type. Uses Time Arrays from the TimeSeries package
+    makeDataSetup(::BGR2010_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+    
+Generate a dataset strcture for use with the single-frequency models
 """
 function makeDataSetup(::BGR2010_type,data_tab::TimeArray; var_list =  colnames(data_tab))
     return dataBVAR_TA(data_tab, var_list)

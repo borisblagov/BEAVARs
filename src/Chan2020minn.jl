@@ -7,7 +7,15 @@ function makeHypSetup(::Chan2020minn_type)
 end
 
 @doc raw"""
-    Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
+    makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+
+Generate a dataset strcture for use with the single-frequency models
+    
+# Arguments
+    model_type: The custom model type (not a string)
+    data_tab:   TimeArray with the data_de
+    var_list:   A symbol list with the variable names. Will be used for oredering the variables. Uses by default the names from data_tab if not supplied. note that Symbol lists have a particular synthax.
+
 """
 function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
     return dataBVAR_TA(data_tab, var_list)

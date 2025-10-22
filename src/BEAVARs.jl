@@ -121,7 +121,7 @@ end
 # end
 
 @doc raw"""
-    model_type, hyp_strct, set_strct = makeSetup(model_str::String; p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
+    model_type, set_strct, hyp_strct = makeSetup(model_str::String; p::Int=4,n_burn::Int=1000,n_save::Int=1000,n_irf::Int=16,n_fcst::Int = 8,hyp::BVARmodelHypSetup=hypDefault_strct())
     
 Specify a model and generate structures for the Bayesian VAR and the hyperparameters.
 
@@ -135,7 +135,6 @@ Only the first argument is mandatory, rest is optional with default values.
     n_irf:     horizon of impulse responses, default is 16
     n_fcst:    horizon of forecasting periods, default is 8
     hyp:       hyperparameter structure populated with default values for each model. See the relevant papers/documentation for details. To generate your own see the relevant structures below.
-
 
 See also [`hypChan2020`](@ref), [`hypBGR2010`](@ref).
 """
@@ -151,7 +150,7 @@ function makeSetup(model_str::String;p::Int=4,n_burn::Int=1000,n_save::Int=1000,
     intercept = BEAVARs.selectConstLoc(model_str);
     
     set_strct = BEAVARs.VARSetup(p,n_burn,n_save,n_irf,n_fcst,intercept);
-    return model_type, hyp_strct, set_strct
+    return model_type, set_strct, hyp_strct
 end
 
 function unpackLoopSetup(loop_strct::BVARmodelLoopSetup)

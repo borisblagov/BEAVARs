@@ -7,7 +7,9 @@ end
 
 
 @doc raw"""
-    Prepares the structure containg the data for Bayesian VAR using the Chann2020 type. Uses Time Arrays from the TimeSeries package
+    makeDataSetup(::Chan2020csv_type,data_tab::TimeArray; var_list =  colnames(data_tab))
+
+Generate a dataset strcture for use with the single-frequency models
 """
 function makeDataSetup(::Chan2020csv_type,data_tab::TimeArray; var_list =  colnames(data_tab))
     return dataBVAR_TA(data_tab, var_list)

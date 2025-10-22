@@ -6,7 +6,7 @@ end
 @doc raw"""
     dataCPZ2023(data_HF::TimeArray,data_LF::TimeArray,aggMix::Int,var_list::Array{Symbol,1})
 
-generate a dataset strcture for use with CPZ2023 model
+Generate a dataset strcture for use with CPZ2023 model
 
 # Arguments
     dataHF_tab: TimeArray with your high-frequency variables (monthly or quarterly, respectively)
@@ -24,7 +24,18 @@ See also `makeDataSetup`.
 end
 
 @doc raw"""
-    Prepare the structure containg the data for the mixed-frequency VAR. Uses Time Arrays from the TimeSeries package
+    makeDataSetup(::CPZ2023_type,dataHF_tab::TimeArray, dataLF_tab::TimeArray, aggMix::Int; var_list =  [colnames(dataHF_tab); colnames(dataLF_tab)])
+
+Generate data for a mixed-frequency VAR. Uses Time Arrays from the TimeSeries package
+    
+# Arguments
+    dataHF_tab: TimeArray with your high-frequency variables (monthly or quarterly, respectively)
+    dataLF_tab: TimeArray with your low-frequency variables (quarterly or yearly, respectively)
+    aggMix:     0 for data in growth rates, 1 for log-levels. Determines the weights how high freq. variables fit with low-frequency ones. Will use averages for log-levels or Mariano and Murasawa (2010) weights for growth rates 
+    var_list:   the variable order. Note that the functions that call these variables allow this to be optional.
+
+See also `dataCPZ2023`.
+
 """
 function makeDataSetup(::CPZ2023_type,dataHF_tab::TimeArray, dataLF_tab::TimeArray, aggMix::Int; var_list =  [colnames(dataHF_tab); colnames(dataLF_tab)])
     return dataCPZ2023(dataHF_tab, dataLF_tab, aggMix, var_list)
