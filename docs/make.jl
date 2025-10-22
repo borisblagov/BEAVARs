@@ -1,4 +1,4 @@
-using Documenter, BEAVARs, TimeSeries, LiveServer
+using Documenter, BEAVARs, TimeSeries, LiveServer, DocumenterTools
 
 makedocs(
     sitename="Documentation",
