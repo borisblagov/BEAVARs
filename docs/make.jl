@@ -16,6 +16,8 @@ makedocs(
         ]
     ]
 )
-# deploydocs(
-#     repo = "github.com/borisblagov/BEAVARs.jl.git",
-# )
+deploydocs(
+    target = "build",
+    repo = "github.com/borisblagov/BEAVARs.jl.git",       
+    devbranch="main",
+)
