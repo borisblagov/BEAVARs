@@ -71,7 +71,26 @@ end
 
 
 @doc raw"""
+    CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-8)
 
+Generates an M matrix such that `z = My + eps`. `y` is a vector of unobserved high-frequency values and the observations in `z` relate by a linear combination to a subset of the values in `y`
+
+# Arguments
+    z_tab:      A `TimeArray` of low-frequncy observations, either yearly or quarterly
+    YYt:        A transposed vector of data. Only its dimensions matter, not what is in it. It is assumed it has some unobserved values which are observed only at the lower frequency (`z_tab`)
+    Sm_bit:     A boolean matrix indicating which indices in YYt are to be matched, i.e. which are the missing high-frequency observations
+    datesHF:    A TimeArray accompanying `YYt`
+    varNamesLF: Vector with variable names from `z_tab` to be matched with a the high-frequency data. Code will err if varNamesLF is not a subset of fvarNames
+    fvarNames:  Vector with variable names from `y` to be matched with a the low-frequency data. Code will err if varNamesLF is not a subset of fvarNames
+    freq_mix_tp:Tuple indicating what is the frequency mix: monthly, quarterly, yearly, growth rates, log-levels
+    nm:         Total number of missing values  (consider dropping this, because we have Sm_bit)
+    Tf:         Total number of high-frequency observations (Tf = length(YY), Tf = size(YYt,2), consider dropping this as input, as we have YYt in the function)
+    scVal:      Optional parameter, value of how "hard" the constraint is. Setting it to very small values enforces z = My, while setting it higher allows for some discrepancies
+
+!!! note "Important"
+    The function currently accepts only one variable in z_tab, has to be extended. If you have both GDP and Consumption which are observed in LF and Z_tab has 2 columns, the O-matrix will be wrong, see below
+
+#TODO        
 """
 function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_tp,nm,Tf;scVal=10e-8)
     
@@ -85,12 +104,15 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
     M_z = zeros(T_z*n_z,nm)
     z_vec = zeros(T_z*n_z,)
     iter = CartesianIndices(YYt)
+    flagFirstRow = zeros(n_z,);                              # if we don't have a full quarter/year we will not be able to have a hard constraint in the beginning, set the error to a higher value
+
     for ii_z = 1:n_z # iterator going through each variable in z_tab (along the columns)
+        
         datesLF_ii = timestamp(z_tab[varNamesLF[ii_z]])
-        ym_ci = iter[Sm_bit] # a vector of y_m with cartesian indices of the missing values in YYt
+        ym_ci = iter[Sm_bit]                                # a vector of y_m with cartesian indices of the missing values in YYt
         z_ci = CartesianIndices((z_var_pos[ii_z]:z_var_pos[ii_z],1:Tf))
-        z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2)) # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
-    
+        
+        z_Mind_vec_ii = vec(sum(ym_ci.==z_ci,dims=2))       # alternative z_Mind_vec=vec(indexin(ym_ci,z_ci)).!==nothing
         M_inter_ii = zeros(T_z,nm)
         M_z_ii = @views M_inter_ii[:,z_Mind_vec_ii.==1]
     
@@ -120,15 +142,26 @@ function CPZ_makeM_inter(z_tab,YYt,Sm_bit,datesHF,varNamesLF,fvarNames,freq_mix_
         end
     
         for ii_zi in eachindex(datesLF_ii) # iterator going through each time point in datesHF
-            ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
-            # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
-            M_z_ii[ii_zi,ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+            if ii_zi == 1 # check if we have a full quarter/year in the beginning, otherwise we will try to acces negative indices in the matrix M
+                ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
+                MrowRange = ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2);
+                start_value = max(1, MrowRange[1]); stop_value = MrowRange[end]; positive_range = start_value:stop_value
+                M_z_ii[ii_zi,start_value:stop_value]=hfWeights[MrowRange.>0];
+                flagFirstRow[ii_z] = 1;
+            else
+                ii_M = findall(datesHF.==datesLF_ii[ii_zi])[1]       # find the low-frequency index that corresponds to the high-frequency missing value
+                # M_z_ii[ii_zi, findall(datesHF.==datesLF_ii[ii_zi])[1]-n_hfw+1:findall(datesHF.==datesLF_ii[ii_zi])[1]] = hfWeights # if shifted above
+                M_z_ii[ii_zi,ii_M-div((n_hfw-hf_num1),2): ii_M+div((n_hfw-hf_num2),2)]=hfWeights; # +2 and - 2 months for the weights or +3 and -3
+            end
         end
-        M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;
+        M_z[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,:] = M_inter_ii;    # , should be fixed by stacking the M_inter_ii
         z_vec[(ii_z-1)*T_z + 1:T_z + (ii_z-1)*T_z,]  = values(z_tab[varNamesLF[ii_z]]);
     end
-    M_zsp = M_z;
-    O_zsp = Matrix(I,T_z,T_z).*scVal;
+    M_zsp = M_z;                        # Leftover from when trying sparse matrices, should be fixed by stacking the M_inter_ii
+    O_zsp = Matrix(I,T_z,T_z).*scVal;   # this works only if we have one z variable (with T_z length)
+    if flagFirstRow[1] == 1             # this here is only half-baked. We need to iterate over n_z variables and find their corresponding T_z lenghts
+        O_zsp[1,1] = scVal*1000
+    end
     MOiM = M_zsp'*(O_zsp\M_zsp);
     MOiz = M_zsp'*(O_zsp\z_vec);
     return M_zsp, z_vec, T_z, MOiM, MOiz
@@ -364,7 +397,7 @@ function CPZ2023(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
         end
     end
 
-    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt
+    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt, freq_mix_tp
 end
 
 
@@ -415,7 +448,7 @@ function CPZ2023n(YYwNA, z_tab, freq_mix_tp, datesHF, varNamesLF, fvarNames,varS
         end
     end
 
-    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt
+    return store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σt, freq_mix_tp
 end
 
 
@@ -453,6 +486,8 @@ end
     z_vec::Array{} 
     Sm_bit::Array{}
     store_Σt::Array{}        # 
+    var_list::Array{}
+    freq_mix
 end
 # end of output strcutres
 #------------------------------

@@ -33,7 +33,7 @@ end
 
 
 
-function fanChart(toPlot_mat,dates::Vector{DateTime})
+function fanChart(toPlot_mat,dates::Array{Date, 1})
     prct_dim = length(size(toPlot_mat)); # the dimension with the draws (always theh last)
     if prct_dim == 3
         n=size(toPlot_mat,2);

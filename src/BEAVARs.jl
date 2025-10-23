@@ -233,8 +233,8 @@ end
 function beavar(::CPZ2023_type, set_strct, hyp_strct, data_strct)
     println("Hello CPZ2023")
     @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
-    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt, freq_mix_tp = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt,var_list,freq_mix_tp)
     return out_strct
 end
 
@@ -245,8 +245,8 @@ end
 function beavar(::Blagov2025_type, set_strct, hyp_strct, data_strct)
     println("Hello Blagov2025")
     @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt = Blagov2025(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
-    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt, freq_mix_tp = Blagov2025(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
+    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt,var_list,freq_mix_tp)
     return out_strct
 end
 
