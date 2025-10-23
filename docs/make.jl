@@ -18,6 +18,6 @@ makedocs(
 )
 deploydocs(
     target = "build",
-    repo = "github.com/borisblagov/BEAVARs.jl.git",       
+    repo = "github.com/borisblagov/BEAVARs",       
     devbranch="main",
 )
