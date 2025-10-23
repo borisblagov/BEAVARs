@@ -18,5 +18,5 @@ makedocs(
 )
 deploydocs(
     target = "build",
-    repo = "github.com/borisblagov/BEAVARs",
+    repo = "github.com/borisblagov/BEAVARs.git",
 )
