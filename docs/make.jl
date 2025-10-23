@@ -14,7 +14,3 @@ makedocs(
         ]
     ]
 )
-
-deploydocs(
-    repo = "github.com/borisblagov/BEAVARs.jl.git",
-)
