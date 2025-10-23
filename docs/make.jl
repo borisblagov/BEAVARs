@@ -1,3 +1,5 @@
+using Pkg
+Pkg.activate(@__DIR__)
 using Documenter, BEAVARs, TimeSeries, LiveServer, DocumenterTools
 
 makedocs(
@@ -14,6 +16,6 @@ makedocs(
         ]
     ]
 )
-deploydocs(
-    repo = "github.com/borisblagov/BEAVARs.jl.git",
-)
+# deploydocs(
+#     repo = "github.com/borisblagov/BEAVARs.jl.git",
+# )
