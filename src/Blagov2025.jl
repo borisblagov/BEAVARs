@@ -250,6 +250,68 @@ function Blagov2025_updCPZcsv!(Σ_invsp,p,n,Tf,Ωinv)
 end
 
 
+@doc raw"""
+    Magg = Blagov2025_createMagg(dataHF_tab,freq_mix)
+
+Create an `M` matrix for aggregating a high-frequency time-series to a lower frequency. 
+    
+The frequency relationship can be either monthly and quarterly or quarterly and yearly for growth rates or levels.
+Consider `z=Magg*y` where `y` is a vector of monthly data. `Magg` is created in such a way so that `z` is the quarterly counterpart to `y`.  
+
+# Arguments
+
+    timeHF: a `Date` vector with the high-frequency dates to be matched to low-frequency dates
+    freq_mix: a `Tuple` that states the relationship and transformation. (1,3,0) is monthly and quarterly growth rates, (1,3,1) are levels. 
+
+The growth rate approximation follows Mariano and Murasawa (2003, 2010)    
+
+References: Mariano and Murasawa (2010), A Coincident Index, Common Factors, and Monthly Real GDP, https://onlinelibrary.wiley.com/doi/full/10.1111/j.1468-0084.2009.00567.x
+"""
+function Blagov2025_createMagg(timeHF,freq_mix)
+    # We will initialize some temporary objects here to generate an M matrix to convert monthly time series to quarterly (and quarterly to yearly later)
+    
+    if freq_mix==(1,3,0)||freq_mix==(1,3,1)
+        selected_months = [1, 4, 7, 10]  # March, June, September
+    elseif freq_mix==(3,12,0)||freq_mix==(3,12,1)
+        # add here the case for yearly and quarterly data
+        #TODO
+    end
+    timeLF = filter(d -> month(d) in selected_months, timeHF);
+    Tpfhor = length(timeHF);
+    tempYYt = fill(NaN,(Tpfhor,))';
+    tempZ_tab = TimeArray(timeLF,fill(NaN,(length(timeLF))));       # make a temporary z_tab to get an M matrix to convert monthly to quarterly for each series
+    tempSm_bit = isnan.(tempYYt);
+    nm = sum(tempSm_bit);
+    out_tup = BEAVARs.CPZ_makeM_inter(tempZ_tab,tempYYt,tempSm_bit,timeHF,colnames(tempZ_tab),colnames(tempZ_tab),freq_mix,nm,Tpfhor;scVal=10e-8)
+
+    Magg = out_tup[1];
+    return Magg, timeLF
+end
+
+
+
+@doc raw"""
+    lf_mat, lf_mat_med = Blagov2025_hf2lf(out_strct,Magg,var_name::Symbol)
+
+Convert high-frequency draws to low-frequency draws.
+
+# Arguments
+    out_strct: output structure from the Bayesian VAR model
+    Magg:       matrix with the aggregation restrictions, output from Blagov2025_createMagg
+    var_name:  Symbol for the variable that should be aggregated to lower frequency
+
+See also Blagov2025_createMagg
+"""
+function Blagov2025_hf2lf(out_strct,Magg,var_name::Symbol)
+ 
+    var_no = findfirst(==( var_name ), out_strct.var_list);   # here ==( :gdpBG ) is an anonymous function. ==(a, b) is the same as a == b and x -> x == :gdpBG is equiv to ==( :gdpBG )
+    hf_mat = out_strct.store_YY[:,var_no,:]; # matrix with high-frequency data x draws to be aggregated to low-frequency
+    lf_mat = Magg*hf_mat;                    # aggregated low-frequency x draws
+    lf_mat_med = percentile_mat(lf_mat,0.5,dims=2);
+
+    return lf_mat, lf_mat_med
+end
+
 
 # #--------------------------------------
 # # Forecast Blagov2025
