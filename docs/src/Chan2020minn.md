@@ -2,11 +2,11 @@
 
 ## Simple example
 
-We start by loading the packages that we need for this example: `TimeSeries` and `Dates`. `TimeSeries` needed to generate a specific `TimeArray` structure so it is required.  The package `Dates` is used only to generate random data fo this example and is typically not required - you will probably load your own data. 
+We start by loading the packages that we need for this example: `TimeSeries` and `Dates`. `TimeSeries` is needed to generate a specific `TimeArray` structure so it is required.  The package `Dates` is used only to generate random data for this example and is typically not required - you will probably load your own data. 
 
 !!! note "Installing additional packages"
-    The first time you run this code, you priobably don't have these packages installed. You would have to install them using the usual Julia approach.
-    ```
+    The first time you run this code, you probably don't have these packages installed. Install them using the usual Julia approach.
+    ```julia
     julia> ]
     pkg> add TimeSeries
     pkg> add Dates
@@ -25,9 +25,9 @@ julia> using Dates     # these are required only for the example, your data may 
 Next we will create the setup for the VAR model using the `makeSetup()` function. The function needs a specific string as input to know which structures to initialize and we need to figure the synthax out. 
 
 !!! note "Getting help"
-    In Julia you can get help for specific functions by typing a question mark `?` in the Julia terminal, which switches to the `help>` mode and then typing the function
+    In Julia you can get help for functions by typing a question mark `?` in the Julia terminal, which switches to the `help>` mode and then typing the function name (without brackets).
 
-For that we fetch the function documentation using the help mode.
+Let us fetch the documentation using the help mode.
 ```julia
 julia> ?
 help?> makeSetup
@@ -93,7 +93,7 @@ BEAVARs.VARSetup
 
 !!! note "Changes to these structures"
     Suppose we wanted to change some of the settings. It might be logical for you to then try something like `set_strct(p=2)` but this is not the way to go. Use the function `makeSetup` again. Supose we actually wanted 3 lags, we can do:
-    ```
+    ```julia
     model_type, set_strct, hyp_strct = makeSetup("Chan2020minn";n_burn=20,n_save=50,p=3)
     ```
     Do not forget to add the settings we are **not** changing, in the above example `n_burn` and `n_save`.
@@ -152,7 +152,7 @@ Now we are ready to estimate the model. The generic function is
 julia> out_strct = beavar(model_type, set_strct, hyp_strct, data_strct);
 ```
 
-**That's it!** `out_struct` contains the relevant output from the model and is used as input for further analyses such as forecasts or structural analysis (impulse response functions).
+**That's it!** `out_strct` contains the relevant output from the model and is used as input for further analyses such as forecasts or structural analysis (impulse response functions).
 
 ```julia
 julia> out_strct
@@ -166,6 +166,8 @@ BEAVARs.VAROutput_Chan2020minn
     Julia compiles the function the first time it is run and every run afterwards only executes the compiled code. Thus the first run is very slow. For this package it makes sense to always run the function the first time with very few draws and burn-in. Then you can run it with the desired number.
     ```julia
     julia> model_type, set_strct, hyp_strct = makeSetup("Chan2020minn";n_burn=20,n_save=50,p=2)
-    julia> out_strct, varSetup = beavar(model_type, set_strct, hyp_strct, data_strct);
+    julia> out_strct = beavar(model_type, set_strct, hyp_strct, data_strct);
     julia> model_type, set_strct, hyp_strct = makeSetup("Chan2020minn";n_burn=2000,n_save=5000,p=2)
     ```
+
+The structure `out_strct` contains the output of the model which can be used for further analysis such as forecasting or structural analysis using impulse response functions.

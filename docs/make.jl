@@ -3,13 +3,15 @@ Pkg.activate(@__DIR__)
 using Documenter, BEAVARs, TimeSeries, LiveServer, DocumenterTools
 
 makedocs(
-    sitename="Documentation",
+    sitename="BEAVARs.jl",
     pages = [
         "Introduction" => "introduction.md",
-        "Models" => [
+        "Estimation" => [
             "Chan2020minn" => "Chan2020minn.md"
             "Chan2020iniw" => "Chan2020iniw.md"
         ],
+        "Forecasting" => "forecasting.md",
+        "Structural analysis" => "irfs.md",
         "File library" => [
             "Constructors" => "Constructors.md"
             "Initialization" => "init_functions.md"
