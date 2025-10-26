@@ -1,7 +1,7 @@
 # Initialization functions functions
 
 ```@docs
-ols(Y,X)
+BEAVARs.ols(Y,X)
 ```
 
 ```@docs
@@ -9,7 +9,7 @@ mlag(Yfull::Matrix{Float64},p::Integer)
 ```
 
 ```@docs
-trainPriors(Z0::Matrix{Float64},p::Int64)
+BEAVARs.trainPriors(Z0::Matrix{Float64},p::Int64)
 ```
 
 ```@percentile_mat

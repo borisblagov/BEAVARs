@@ -1,8 +1,12 @@
 
 """
     mlag(Yfull::Matrix{Float64},p::Integer)
-    Creates lags of a matrix for a VAR representation with a constant on the right of X
-        Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
+
+Creates lags of a matrix for a VAR representation with a constant on the right of X
+
+# Arguments
+    Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
+    p: number of lags
 """
 function mlag(Yfull::Matrix{Float64},p::Integer)
     (Tf, n) = size(Yfull)
@@ -19,7 +23,8 @@ end
 
 """
     mlagL!(YY,Y,X,p,n;intercept=1)
-    Creates lagged matrices Y and X by mutating. Assumes constant is on the left of X
+
+Creates lagged matrices Y and X by mutating. Assumes constant is on the left of X
 """
 function mlagL!(YY,Y,X,p,n)
     for i = 1:p
@@ -32,7 +37,9 @@ end
 
 """
     mlagL(Yfull::Matrix{Float64},p::Integer)
-    Creates lags of a matrix for a VAR representation with a constant in X on the left and for Y= X*B, the constant is on the transpose
+
+Creates lags of a matrix for a VAR representation with a constant in X on the left and for Y= X*B, the constant is on the transpose
+# Arguments
         Yfull: a matrix of dimensions T+p x N returns a matrix Y with dimensions TxN and X with dimenions Tx(N*p+1)
 """
 function mlagL(Yfull::Matrix{Float64},p::Integer)
@@ -71,7 +78,6 @@ returning β as a vector, the vector of residuals ε and the variance σ_sq
 function ols2(Y,X,β,ε,T,n,σ_sq)
     # β = vec(X\Y);
     β[:,:] = X\Y;
-    # ε = Y-X*reshape(β,size(X,2),n);
     ε[:,:] = Y-X*β;
     σ_sq[:,:] = mul!(σ_sq,ε',ε)./(size(Y));
     return β, ε, σ_sq
@@ -234,6 +240,5 @@ end
 _nanfunc(f, A, ::Colon) = f(filter(!isnan, A))
 _nanfunc(f, A, dims) = mapslices(a->_nanfunc(f,a,:), A, dims=dims)
 nanfunc(f, A; dims=:) = _nanfunc(f, A, dims)
-
 
 

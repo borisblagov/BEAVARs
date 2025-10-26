@@ -15,6 +15,7 @@ makedocs(
         "File library" => [
             "Constructors" => "Constructors.md"
             "Initialization" => "init_functions.md"
+            "Data transformation" => "dataPrep.md"
         ]
     ]
 )

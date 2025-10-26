@@ -35,7 +35,35 @@ end
 
 
 @doc raw"""
-     
+     BEAVARs.Blagov2025(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
+
+Implements the mixed-frequency BVAR model as in Blagov et al. (2025)
+
+# Arguments
+    dataHF_tab: TimeArray with your high-frequency variables (monthly or quarterly, respectively)
+    dataLF_tab: TimeArray with your low-frequency variables (quarterly or yearly, respectively)
+    varList:    A symbol list with the variable names. Will be used for oredering the variables.
+    varSetup:   A BVARmodelSetup structure with the model setup
+    hypSetup:   A BVARmodelHypSetup structure with the hyperparameters
+
+# Returns
+    store_YY:      A 3D array with the posterior draws of the data matrix
+    store_β:       A matrix with the posterior draws of the VAR coefficients
+    store_Σt_inv:  A 3D array with the posterior draws of the variance-covariance matrix inverse
+    M_zsp:         The mapping matrix from high-frequency to low-frequency
+    z_vec:         A vector indicating the low-frequency observations in the high-frequency time series
+    Sm_bit:        A binary selection matrix for the missing values in YY
+    store_Σt:      A 3D array with the posterior draws of the variance-covariance matrix
+    store_h:       A matrix with the posterior draws of the stochastic volatility log-variances
+    store_s2_h:    A matrix with the posterior draws of the stochastic volatility variances
+    store_ρ:       A vector with the posterior draws of the AR(1) coefficient of the stochastic volatility process
+    store_σ_h2:    A vector with the posterior draws of the innovation variance of the stochastic volatility process
+    store_eh:      A matrix with the posterior draws of the stochastic volatility innovations
+
+# Description
+The function implements the mixed-frequency BVAR model as in Blagov et al. (2025).
+# Reference
+Blagov, S., Giannone, D., Lenza, M., Modugno, M. (2025), Mixed-Frequency Bayesian VARs with Stochastic Volatility: Methodology and Macroeconomic Applications, Journal of Econometrics, forthcoming.
 """
 function Blagov2025(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,trans)
     @unpack ρ, σ_h2, v_h0, S_h0, ρ_0, V_ρ = hypSetup
@@ -153,18 +181,18 @@ end
 
 
 
-function dispatchModel(::Blagov2025_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
-    println("Hello Blagov2025")
-    intercept = 1;
-    dataHF_tab  = YY_tup[1]
-    dataLF_tab  = YY_tup[2]
-    varList     = YY_tup[3]
-    trans       = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
-    set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σ, store_h, store_s2_h, store_ρ, store_σ_h2, store_eh = Blagov2025(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
-    out_strct = VAROutput_Blagov2025(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σ, store_h, store_s2_h, store_ρ, store_σ_h2, store_eh)
-    return out_strct, set_strct
-end
+# function dispatchModel(::Blagov2025_type,YY_tup, hyp_strct, p,n_burn,n_save,n_irf,n_fcst)
+#     println("Hello Blagov2025")
+#     intercept = 1;
+#     dataHF_tab  = YY_tup[1]
+#     dataLF_tab  = YY_tup[2]
+#     varList     = YY_tup[3]
+#     trans       = YY_tup[4] # transformation of the LF variables (0: growth rates or 1: log-levels)
+#     set_strct = VARSetup(p,n_save,n_burn,n_irf,n_fcst,intercept);
+#     store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit, store_Σ, store_h, store_s2_h, store_ρ, store_σ_h2, store_eh = Blagov2025(dataHF_tab,dataLF_tab,varList,set_strct,hyp_strct,trans)    
+#     out_strct = VAROutput_Blagov2025(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σ, store_h, store_s2_h, store_ρ, store_σ_h2, store_eh)
+#     return out_strct, set_strct
+# end
 
 
 

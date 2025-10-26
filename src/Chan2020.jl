@@ -81,7 +81,7 @@ end
 #----------------------------------------
 
 @doc raw"""
-# blkDiagMat_sp,blockMatInd_vec = makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
+    blkDiagMat_sp,blockMatInd_vec = makeBlkDiag(Tfn::Int,n::Int,p::Int,blockMat)
 
 Initializes a block-diagonal matrix with p optional blocks below the main diagonal matrix and populates it.
 

@@ -1,6 +1,9 @@
 # ------------------------------------------------------------------
-# Classical Minnesota prior with fixed variance-covariance matrix Σ 
-
+# BVAR with classical  Minnesota prior (homoscedastic fixed variance-covariance matrix) 
+# as in Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), 
+# _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, 
+# [https://doi.org/10.1007/978-3-030-31150-6](https://doi.org/10.1007/978-3-030-31150-6), 
+# see also [joshuachan.org](https://joshuachan.org) and his [pdf](https://joshuachan.org/papers/large_BVAR.pdf).
 
 function makeHypSetup(::Chan2020minn_type)
     return hypChan2020()
@@ -15,7 +18,8 @@ Generate a dataset strcture for use with the single-frequency models
     model_type: The custom model type (not a string)
     data_tab:   TimeArray with the data_de
     var_list:   A symbol list with the variable names. Will be used for oredering the variables. Uses by default the names from data_tab if not supplied. note that Symbol lists have a particular synthax.
-
+# Returns
+    data_strct: A dataBVAR_TA structure with the data and metadata
 """
 function makeDataSetup(::Chan2020minn_type,data_tab::TimeArray; var_list =  colnames(data_tab))
     return dataBVAR_TA(data_tab, var_list)
@@ -24,10 +28,23 @@ end
 
 
 @doc raw"""
-    Chan2020minn(YY,VARSetup,hypSetup)
+    BEAVARs.Chan2020minn(YY,VARSetup,hypSetup)
 
 Implements the classic homoscedastic Minnesota prior with a SUR form following Chan (2020)
 
+# Arguments
+    YY:         A T x n matrix with the data
+    VARSetup:   A BVARmodelSetup structure with the model setup
+    hypSetup:   A BVARmodelHypSetup structure with the hyperparameters
+# Returns
+    store_β:    A matrix with the posterior draws of the VAR coefficients
+    store_Σ:    A matrix with the posterior draws of the variance-covariance matrix
+
+# Description
+The function implements the homoscedastic Minnesota prior with a SUR form as in Chan (2020).
+
+# Reference
+Chan, J.C.C. (2020), Large Bayesian Vecotrautoregressions, P. Fuleky (Eds), _Macroeconomic Forecasting in the Era of Big Data_, 95-125, Springer, Cham, https://doi.org/10.1007/978-3-030-31150-6 and https://joshuachan.org/papers/large_BVAR.pdf.
 """
 function Chan2020minn(YY,VARSetup::BVARmodelSetup,hypSetup::BVARmodelHypSetup)
     @unpack p,nburn,nsave = VARSetup
@@ -74,7 +91,21 @@ end
 #------------------------------
 # Forecasting block
 #------------------------------
+@doc raw"""
+    Yfor3D = BEAVARs.forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
 
+Generates forecasts from the Chan2020minn model output
+
+# Arguments
+    VAROutput: A VAROutput_Chan2020minn structure with the model output
+    VARSetup:  A BVARmodelSetup structure with the model setup  
+# Returns
+    Yfor3D:    A 3D array with the forecasts. Dimensions are (p+n_fcst) x n x nsave
+
+# Description
+
+The function generates forecasts from the Chan2020minn model output.
+"""
 function forecast(VAROutput::VAROutput_Chan2020minn,VARSetup)
     @unpack store_β, store_Σ, YY = VAROutput
     @unpack n_fcst,p,nsave = VARSetup

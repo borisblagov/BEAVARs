@@ -10,16 +10,14 @@ using   LinearAlgebra,
         BenchmarkTools
 
 # from init_functions.jl
-export mlag, mlagL, mlagL!, ols, percentile_mat
+export mlag, mlagL, mlagL!, percentile_mat
 
 # from Banbura, Giannone, Reichling 2010
-export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, BGR2010, hypBGR2010
+#export makeDummiesMinn!, makeDummiesSumOfCoeff!, getBeta!, getSigma!, gibbs_beta_sigma,trainPriors, BGR2010, hypBGR2010
 
 # from irfs.jl
 export irf_chol, irf_chol_overDraws, irf_chol_overDraws_csv
 
-# from Chan_2020
-export prior_Minn, Chan2020minn, Chan2020csv, prior_NonConj
 export hypChan2020, hypBGR2010
 
 export beavar, beavars, makeOutput, makeSetup, makeHypSetup, makeDataSetup, LoopSetup
@@ -255,11 +253,11 @@ function beavar(::BGR2010_type, set_strct, hyp_strct, data_strct)
     println("Hello BGR2010")
     YY = values(data_strct.data_tab);
     store_β, store_Σ = BGR2010(YY,set_strct,hyp_strct);
-    out_strct = VAROutput_BGR2010(store_β,store_Σ,YY)
+    out_strct = VAROutput_BGR2010(store_β,store_Σ,YY);
     return out_strct
 end
 
-function beavars(vint_in_dict::Dict)
+function beavars(vint_in_dict::Dict{String,BEAVARs.BVARmodelLoopSetup})
     vint_out_dict = Dict{String,BEAVARs.BVARmodelOutput}()
     fcast_out_dict = Dict{String,Array{Float64, 3}}()
     for (index, value) in pairs(vint_in_dict)
