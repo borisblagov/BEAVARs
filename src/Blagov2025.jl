@@ -299,18 +299,26 @@ function Blagov2025_createMagg(timeHF,freq_mix)
     # We will initialize some temporary objects here to generate an M matrix to convert monthly time series to quarterly (and quarterly to yearly later)
     
     if freq_mix==(1,3,0)||freq_mix==(1,3,1)
-        selected_months = [1, 4, 7, 10]  # March, June, September
+        selected_months = [1, 4, 7, 10]     # Jan, April, July, October
+        # if we have growth rates we need 5 monthly rates to approximate the quarterly growth rate
+        if freq_mix[3] == 0&& rem(month(timeHF[end]),3) !=0        # check whether the high-freq data ends at 3,6,9,12 motnh so that we have a full quarter to approximate
+            # drop the last hf observations
+            timeHF_sh = timeHF[1:end-rem(month(timeHF[end]),3),]
+        else
+            timeHF_sh = timeHF;
+        end
+        
     elseif freq_mix==(3,12,0)||freq_mix==(3,12,1)
         # add here the case for yearly and quarterly data
         #TODO
     end
-    timeLF = filter(d -> month(d) in selected_months, timeHF);
-    Tpfhor = length(timeHF);
+    timeLF = filter(d -> month(d) in selected_months, timeHF_sh);
+    Tpfhor = length(timeHF_sh);
     tempYYt = fill(NaN,(Tpfhor,))';
     tempZ_tab = TimeArray(timeLF,fill(NaN,(length(timeLF))));       # make a temporary z_tab to get an M matrix to convert monthly to quarterly for each series
     tempSm_bit = isnan.(tempYYt);
     nm = sum(tempSm_bit);
-    out_tup = BEAVARs.CPZ_makeM_inter(tempZ_tab,tempYYt,tempSm_bit,timeHF,colnames(tempZ_tab),colnames(tempZ_tab),freq_mix,nm,Tpfhor;scVal=10e-8)
+    out_tup = BEAVARs.CPZ_makeM_inter(tempZ_tab,tempYYt,tempSm_bit,timeHF_sh,colnames(tempZ_tab),colnames(tempZ_tab),freq_mix,nm,Tpfhor;scVal=10e-8)
 
     Magg = out_tup[1];
     return Magg, timeLF
@@ -336,8 +344,8 @@ function Blagov2025_hf2lf(out_strct,Magg,var_name::Symbol)
     hf_mat = out_strct.store_YY[:,var_no,:]; # matrix with high-frequency data x draws to be aggregated to low-frequency
     lf_mat = Magg*hf_mat;                    # aggregated low-frequency x draws
     lf_mat_med = percentile_mat(lf_mat,0.5,dims=2);
-
-    return lf_mat, lf_mat_med
+    lf_mat_mean =  mean(lf_mat,dims=2);
+    return lf_mat, lf_mat_med, lf_mat_mean
 end
 
 

@@ -255,7 +255,7 @@ function pseudo_oos(fdataHF_tab,fdataLF_tab,pseudoHF_beg_date,pseudoHF_end_date,
     HF_beg_date = pseudoHF_beg_date;
     LF_beg_date = pseudoHF_beg_date-Month(pubDelay)
     n_pseu = length(pseudoHF_beg_date:Month(1):pseudoHF_end_date)
-    vint_dict = Dict{String,BEAVARs.BVARmodelLoopSetup}()
+    vint_dict = ThreadSafeDict{String,BEAVARs.BVARmodelLoopSetup}()
 
     for ii in 0:n_pseu-1
         HF_beg_date = pseudoHF_beg_date+Month(ii);

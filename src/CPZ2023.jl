@@ -382,7 +382,7 @@ function CPZ2023(dataHF_tab,dataLF_tab,varList,varSetup,hypSetup,aggMix)
     store_Σt_inv= zeros(n,n,nsave);
     store_Σt    = zeros(n,n,nsave);
 
-    @showprogress for ii in 1:ndraws
+    for ii in 1:ndraws
         # draw of the missing values
         BEAVARs.CPZ_draw_wz!(YYt,longyo,Y0,cB,B_draw,structB_draw,strctBdraw_LI,Σt_inv,Σt_LI,Xb,cB_b0_LI,Σ_invsp,p,n,Sm_bit,Smsp,Sosp,nm,MOiM,MOiz,Gm,Go,H_B,GΣ,Kym,H_B_CI,nmdraws);
         

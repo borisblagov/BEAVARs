@@ -7,7 +7,8 @@ using   LinearAlgebra,
         ProgressMeter,
         Plots,
         XLSX,
-        BenchmarkTools
+        BenchmarkTools,
+        ThreadSafeDicts
 
 # from init_functions.jl
 export mlag, mlagL, mlagL!, percentile_mat
@@ -231,8 +232,8 @@ end
 function beavar(::CPZ2023_type, set_strct, hyp_strct, data_strct)
     println("Hello CPZ2023")
     @unpack dataHF_tab,dataLF_tab, aggMix, var_list = data_strct
-    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt, freq_mix_tp = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix)    
-    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt,var_list,freq_mix_tp)
+    store_YY,store_β, store_Σt_inv, M_zsp, z_vec, Sm_bit,store_Σt, freq_mix_tp = CPZ2023(dataHF_tab,dataLF_tab,var_list,set_strct,hyp_strct,aggMix);
+    out_strct = VAROutput_CPZ2023(store_β,store_Σt_inv,store_YY,M_zsp, z_vec, Sm_bit,store_Σt,var_list,freq_mix_tp);
     return out_strct
 end
 
@@ -257,21 +258,41 @@ function beavar(::BGR2010_type, set_strct, hyp_strct, data_strct)
     return out_strct
 end
 
-function beavars(vint_in_dict::Dict{String,BEAVARs.BVARmodelLoopSetup})
-    vint_out_dict = Dict{String,BEAVARs.BVARmodelOutput}()
-    fcast_out_dict = Dict{String,Array{Float64, 3}}()
+function beavars(vint_in_dict::ThreadSafeDict{String,BEAVARs.BVARmodelLoopSetup})
+    vint_out_dict = ThreadSafeDict{String,BEAVARs.BVARmodelOutput}()
+    fcast_out_dict = ThreadSafeDict{String,Array{Float64, 3}}()
     for (index, value) in pairs(vint_in_dict)
         # println("$index $value")
         println("Estimating data vintage $index")
-        model_type, set_strct, hyp_strct, data_strct = BEAVARs.unpackLoopSetup(value)
-        out_strct = beavar(model_type, set_strct, hyp_strct, data_strct)
-        YYfcast3D_mat = BEAVARs.forecast(out_strct,set_strct)
-        vint_out_dict[index] = out_strct
-        fcast_out_dict[index] = YYfcast3D_mat
+        model_type, set_strct, hyp_strct, data_strct = BEAVARs.unpackLoopSetup(value);
+        out_strct = beavar(model_type, set_strct, hyp_strct, data_strct);
+        YYfcast3D_mat = BEAVARs.forecast(out_strct,set_strct);
+        vint_out_dict[index] = out_strct;
+        fcast_out_dict[index] = YYfcast3D_mat;
     end
     
     return vint_out_dict, fcast_out_dict
 end
+
+function beavars_multi(vint_in_dict::ThreadSafeDict{String,BEAVARs.BVARmodelLoopSetup})
+    vint_out_dict = ThreadSafeDict{String,BEAVARs.BVARmodelOutput}()
+    fcast_out_dict = ThreadSafeDict{String,Array{Float64, 3}}()
+    ks = collect(keys(vint_in_dict))
+    # Threads.@threads for (index, value) in pairs(vint_in_dict)
+    Threads.@threads for index in ks
+        # println("$index $value")
+        println("Estimating data vintage $index")
+        value=vint_in_dict[index];
+        model_type, set_strct, hyp_strct, data_strct = BEAVARs.unpackLoopSetup(value);
+        out_strct = beavar(model_type, set_strct, hyp_strct, data_strct);
+        YYfcast3D_mat = BEAVARs.forecast(out_strct,set_strct);
+        vint_out_dict[index] = out_strct;
+        fcast_out_dict[index] = YYfcast3D_mat;
+    end
+    
+    return vint_out_dict, fcast_out_dict
+end
+
 
 #-------------------------------------
 end # END OF MODULE
